@@ -54,10 +54,10 @@ public class LabelPrinter {
 		
 		try {
 			File tempFile = new File(tempBarcodeFileName);
-			FileOutputStream outStream = new FileOutputStream(tempFile);
+			FileOutputStream outStream = new FileOutputStream(tempFile, false);
 			bcgen.getBarcode(packageID, ownerName, dpi, outStream);
 			sendToPrinter(tempBarcodeFileName);
-			tempFile.delete();
+//			tempFile.delete();
 			
 		} catch (IOException e) {
 			// Log and display warning
