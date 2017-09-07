@@ -1,3 +1,4 @@
-/view
-/model
-/controller
+/controller/
+/model/
+/util/
+/view/
