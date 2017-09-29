@@ -45,30 +45,30 @@ import java.awt.event.ActionEvent;
 import javax.swing.JLabel;
 
 public class PanelEditPackages extends JPanel {
-	
+
 	/**
-	 * 
+	 *
 	 */
 	private static final long serialVersionUID = 2711122506103907410L;
 	private JTextField filterText;
 	private JCheckBox chckbxActivePackagesOnly;
-	
+
 	private MainFrame frame;
 	private IViewToModelAdaptor modelAdaptor;
-	
+
 	private JTable tableActivePackages;
 	private DefaultTableModel tableModel;
     private TableRowSorter<DefaultTableModel> sorter;
     private JPopupMenu popup;
-	
+
 	private ArrayList<Pair<Person,Package>> packages;
 	private JLabel lblSearch;
 
 	public PanelEditPackages(MainFrame frame, IViewToModelAdaptor modelAdaptor) {
-		
+
 		this.frame = frame;
 		this.modelAdaptor = modelAdaptor;
-		
+
 		setLayout(new FormLayout(new ColumnSpec[] {
 				FormFactory.DEFAULT_COLSPEC,
 				FormFactory.RELATED_GAP_COLSPEC,
@@ -86,8 +86,8 @@ public class PanelEditPackages extends JPanel {
 				RowSpec.decode("default:grow"),
 				FormFactory.RELATED_GAP_ROWSPEC,
 				FormFactory.DEFAULT_ROWSPEC,}));
-		
-		
+
+
 		// popup menu
 		popup = new JPopupMenu();
 		JMenuItem printLabelItem = new JMenuItem("Print Label");
@@ -111,11 +111,21 @@ public class PanelEditPackages extends JPanel {
 			}
 		});
 		popup.add(checkOutPackageItem);
-		
+
 		// active packages table
 		tableActivePackages = new JTable();
 		tableActivePackages.addMouseListener(new MouseAdapter() {
+			@Override
+			public void mousePressed(MouseEvent e) {
+				checkPopup(e);
+			}
+
+			@Override
 			public void mouseReleased(MouseEvent e) {
+				checkPopup(e);
+			}
+
+			private void checkPopup(MouseEvent e) {
 				int r = tableActivePackages.rowAtPoint(e.getPoint());
 		        if (r >= 0 && r < tableActivePackages.getRowCount()) {
 		            tableActivePackages.setRowSelectionInterval(r, r);
@@ -134,7 +144,7 @@ public class PanelEditPackages extends JPanel {
 		tableActivePackages.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
 		sorter = new TableRowSorter<DefaultTableModel>();
 		tableActivePackages.setRowSorter(sorter);
-		
+
 		tableModel = new DefaultTableModel() {
 			private static final long serialVersionUID = 6852954056260852138L;
 			@Override
@@ -143,7 +153,7 @@ public class PanelEditPackages extends JPanel {
 		    }
 		};
 		tableActivePackages.setModel(tableModel);
-		
+
 		// filter text field
 		filterText = new JTextField();
 		filterText.getDocument().addDocumentListener(
@@ -158,19 +168,19 @@ public class PanelEditPackages extends JPanel {
                         newFilter();
                     }
                 });
-		
+
 		lblSearch = new JLabel("Search:");
 		add(lblSearch, "3, 2");
 		add(filterText, "5, 2, 3, 1");
 		filterText.setColumns(10);
-		
+
 		JScrollPane tableActivePackagesScrollPane = new JScrollPane(tableActivePackages);
 		tableActivePackages.setFillsViewportHeight(true);
-		
+
 		add(tableActivePackagesScrollPane, "3, 4, 5, 1, fill, fill");
-		
+
 		chckbxActivePackagesOnly = new JCheckBox("Active Packages Only");
-		chckbxActivePackagesOnly.setToolTipText("Only show packages that have not been checked out.");		
+		chckbxActivePackagesOnly.setToolTipText("Only show packages that have not been checked out.");
 		chckbxActivePackagesOnly.setSelected(true);
 		chckbxActivePackagesOnly.addItemListener(new ItemListener() {
 			public void itemStateChanged(ItemEvent arg0) {
@@ -179,14 +189,14 @@ public class PanelEditPackages extends JPanel {
 		});
 		add(chckbxActivePackagesOnly, "3, 6, 3, 1, left, default");
 	}
-	
+
 	/**
 	 * Initializes the panel
 	 */
 	public void init() {
 		generateTable();
 	}
-	
+
 	/**
 	 * Generates a table from the database with filter supplied from buildFilter and default
 	 * sorting options
@@ -194,9 +204,9 @@ public class PanelEditPackages extends JPanel {
 	 * 		LastName, FirstName, netID, CheckInDate, CheckOutDate, PackageID
 	 */
 	private void generateTable() {
-		packages = modelAdaptor.getPackages(buildFilter(), 
+		packages = modelAdaptor.getPackages(buildFilter(),
 				"check_in_date=DESCENDING");
-		
+
 		// create headers
 		Vector<String> dataHeaders = new Vector<String>();
 		dataHeaders.add("Last Name");
@@ -216,14 +226,14 @@ public class PanelEditPackages extends JPanel {
 			dataEntry.add(dbEntry.first.getFirstName());
 			dataEntry.add(dbEntry.first.getPersonID());
 			dataEntry.add(ft.format(dbEntry.second.getCheckInDate()));
-			
+
 			if(dbEntry.second.getCheckOutDate() != null) {
 				dataEntry.add(ft.format(dbEntry.second.getCheckOutDate()));
 			} else {
 				dataEntry.add("");
 			}
 			dataEntry.add(Long.valueOf(dbEntry.second.getPackageID()).toString());
-			
+
 			if(dbEntry.second.getCheckOutDate() != null) {
 				dataEntry.add("");
 			}
@@ -234,14 +244,14 @@ public class PanelEditPackages extends JPanel {
 			}
 			data.add(dataEntry);
 		}
-		
+
 		// get the sort and filter keys for setting the sorter after the model is set
 		List<? extends SortKey> sortKeys = sorter.getSortKeys();
 		RowFilter<? super DefaultTableModel, ? super Integer> rowFilter = sorter.getRowFilter();
-		
+
 		// set model for table
 		tableModel.setDataVector(data, dataHeaders);
-		
+
 		// Set column sizes
 		tableActivePackages.getColumnModel().getColumn(0).setPreferredWidth(100);
 		tableActivePackages.getColumnModel().getColumn(1).setPreferredWidth(100);
@@ -250,7 +260,7 @@ public class PanelEditPackages extends JPanel {
 		tableActivePackages.getColumnModel().getColumn(4).setPreferredWidth(100);
 		tableActivePackages.getColumnModel().getColumn(5).setPreferredWidth(100);
 		tableActivePackages.getColumnModel().getColumn(6).setPreferredWidth(30);
-		
+
 		// Center align
 		DefaultTableCellRenderer centerRenderer = new DefaultTableCellRenderer();
 		centerRenderer.setHorizontalAlignment( JLabel.CENTER );
@@ -258,31 +268,31 @@ public class PanelEditPackages extends JPanel {
 		tableActivePackages.getColumnModel().getColumn(3).setCellRenderer( centerRenderer );
 		tableActivePackages.getColumnModel().getColumn(4).setCellRenderer( centerRenderer );
 		tableActivePackages.getColumnModel().getColumn(5).setCellRenderer( centerRenderer );
-		
+
 		// render email column
 		DefaultTableCellRenderer emailRenderer = new DefaultTableCellRenderer() {
 			private static final long serialVersionUID = 1435774334371903319L;
-			public Component getTableCellRendererComponent(JTable table, Object value, 
+			public Component getTableCellRendererComponent(JTable table, Object value,
 					boolean isSelected, boolean hasFocus, int row, int col) {
-				JLabel cell = (JLabel) super.getTableCellRendererComponent(table, 
+				JLabel cell = (JLabel) super.getTableCellRendererComponent(table,
 						value, isSelected, hasFocus, row, col);
-			
+
 				setHorizontalAlignment( JLabel.CENTER );
-				
+
 				int modelRow = table.convertRowIndexToModel(row);
-				
+
 				if((String) tableModel.getValueAt(modelRow, col) == "No") {
 					cell.setBackground(Color.PINK);
 				} else {
 					cell.setBackground(Color.WHITE);
 				}
-				
+
 				return cell;
 			}
-			
+
 		};
 		tableActivePackages.getColumnModel().getColumn(6).setCellRenderer( emailRenderer );
-		
+
 		// sort table
 		sorter.setModel(tableModel);
 		sorter.setSortKeys(sortKeys);
@@ -301,8 +311,8 @@ public class PanelEditPackages extends JPanel {
 		}
 		return filter;
 	}
-	
-	/** 
+
+	/**
      * Update the row filter regular expression from the expression in
      * the text box.
      */
@@ -312,7 +322,7 @@ public class PanelEditPackages extends JPanel {
         String filtText = filterText.getText();
         filtText = filtText.replaceAll("[^a-zA-Z 0-9:.//]", "");
         String[] filters = filtText.split(" ");
-        ArrayList<RowFilter<Object, Object>> rowFilters = 
+        ArrayList<RowFilter<Object, Object>> rowFilters =
         		new ArrayList<RowFilter<Object, Object>>();
         try {
         	for (String filter: filters) {
@@ -324,7 +334,7 @@ public class PanelEditPackages extends JPanel {
         }
         sorter.setRowFilter(rf);
     }
-	
+
 	/**
 	 * Function will reprint label after requesting confirmation
 	 * from the user for the specific label
@@ -336,25 +346,25 @@ public class PanelEditPackages extends JPanel {
 		String netID = (String) tableActivePackages.getValueAt(row,2);
 		String checkOut = (String) tableActivePackages.getValueAt(row,4);
 		String pkgID = (String) tableActivePackages.getValueAt(row,5);
-		String message = "Reprint label for package (ID:" + 
+		String message = "Reprint label for package (ID:" +
 				pkgID + ") for " + firstName + " " + lastName + " (" + netID + ")?";
-		
+
 		if(!checkOut.isEmpty()) {
-			JOptionPane.showMessageDialog(frame, 
+			JOptionPane.showMessageDialog(frame,
 					"This package was already checked out on " + checkOut + "." +
-					"\nNo label will be printed.", 
+					"\nNo label will be printed.",
 					"Package Checked Out", JOptionPane.WARNING_MESSAGE);
 			return;
 		}
-		
+
 		//TODO Add icon
 		// get confirmation and reprint the label
-		if(JOptionPane.showConfirmDialog(frame, message, "Reprint Label", 
+		if(JOptionPane.showConfirmDialog(frame, message, "Reprint Label",
 				JOptionPane.YES_NO_OPTION) == JOptionPane.YES_OPTION) {
 			modelAdaptor.printLabel(Long.valueOf(pkgID));
 		}
 	}
-	
+
 	/**
 	 * Function will resend an email notification with confirmation
 	 */
@@ -365,27 +375,27 @@ public class PanelEditPackages extends JPanel {
 		String netID = (String) tableActivePackages.getValueAt(row,2);
 		String checkOut = (String) tableActivePackages.getValueAt(row,4);
 		String pkgID = (String) tableActivePackages.getValueAt(row,5);
-		String message = "Resend email notification to " + 
-				firstName + " " + lastName + " (" + netID + ")" + 
+		String message = "Resend email notification to " +
+				firstName + " " + lastName + " (" + netID + ")" +
 				" for package (ID:" + pkgID + ")?";
-		
+
 		//TODO Add icon
 		// get confirmation and send package notification
 		if(!checkOut.isEmpty()) {
-			JOptionPane.showMessageDialog(frame, 
+			JOptionPane.showMessageDialog(frame,
 					"This package was already checked out on " + checkOut + "." +
-					"\nNo notification will be sent.", 
+					"\nNo notification will be sent.",
 					"Package Checked Out", JOptionPane.WARNING_MESSAGE);
 			return;
 		}
-		if(JOptionPane.showConfirmDialog(frame, message, "Resend Package Notification", 
+		if(JOptionPane.showConfirmDialog(frame, message, "Resend Package Notification",
 				JOptionPane.YES_NO_OPTION) == JOptionPane.YES_OPTION) {
 			modelAdaptor.sendPackageNotification(netID, Long.valueOf(pkgID));
 		}
-		
+
 		generateTable();
 	}
-	
+
 	/**
 	 * Function checks out a package with confirmation
 	 */
@@ -396,25 +406,25 @@ public class PanelEditPackages extends JPanel {
 		String netID = (String) tableActivePackages.getValueAt(row,2);
 		String checkOut = (String) tableActivePackages.getValueAt(row,4);
 		String pkgID = (String) tableActivePackages.getValueAt(row,5);
-		String message = "Check out package (ID:" + 
+		String message = "Check out package (ID:" +
 				pkgID + ") for " + firstName + " " + lastName + " (" + netID + ")? \n" +
 				"Please note this cannot be undone!";
-		
+
 		if(!checkOut.isEmpty()) {
-			JOptionPane.showMessageDialog(frame, 
+			JOptionPane.showMessageDialog(frame,
 					"This package was already checked out on " + checkOut + "." +
-					"\nThe package will not be checked out again.", 
+					"\nThe package will not be checked out again.",
 					"Package Checked Out", JOptionPane.WARNING_MESSAGE);
 			return;
 		}
-		
+
 		//TODO Add icon
 		//get confirmation and check out package
-		if(JOptionPane.showConfirmDialog(frame, message, "Check Out Package", 
+		if(JOptionPane.showConfirmDialog(frame, message, "Check Out Package",
 				JOptionPane.YES_NO_OPTION) == JOptionPane.YES_OPTION) {
 			modelAdaptor.checkOutPackage(Long.valueOf(pkgID));;
 		}
-		
+
 		// regenerate the table
 		generateTable();
 	}
