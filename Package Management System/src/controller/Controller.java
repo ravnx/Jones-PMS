@@ -1,6 +1,8 @@
 package controller;
 
 import java.awt.EventQueue;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.Map;
 import java.util.logging.Logger;
@@ -41,7 +43,9 @@ public class Controller{
 					Controller control = new Controller();
 					control.start();
 				} catch (Exception e) {
-					logger.severe(e.getMessage());
+					StringWriter writer = new StringWriter();
+					e.printStackTrace(new PrintWriter(writer));
+					logger.severe(writer.toString());
 				}
 			}
 		});
