@@ -58,7 +58,7 @@ public class FileIO {
 		File[] files = new File(dirName).listFiles();
 		
 		for (File file: files) {
-			if(file.isFile()) {
+			if(file.isFile() && !file.getName().startsWith(".")) {
 				results.add(file.getName());
 			}
 		}
