@@ -326,16 +326,16 @@ public class Emailer {
 		String body = templates.get("REMINDER-BODY");
 		String subject = templates.get("REMINDER-SUBJECT");
 		
-//		for (int i=0; i<packages.size(); i++) {
-//			Package pkg = packages.get(i);
-//			body += "Package " + (i+1) + " (ID: " + pkg.getPackageID() + ")" + ":\n";
-//			body += "\tChecked in on " + pkg.getCheckInDate().toString() + "\n";
-//			if(!pkg.getComment().isEmpty()) {
-//				body += "\tComment: " + pkg.getComment() + "\n";
-//			}
-//			body += "\n";
-//		}
-//		body += "Jones Mail Room";
+		for (int i=0; i<packages.size(); i++) {
+			Package pkg = packages.get(i);
+			body += "Package " + (i+1) + " (ID: " + pkg.getPackageID() + ")" + ":\n";
+			body += "\tChecked in on " + pkg.getCheckInDate().toString() + "\n";
+			if(!pkg.getComment().isEmpty()) {
+				body += "\tComment: " + pkg.getComment() + "\n";
+			}
+			body += "\n";
+		}
+		body += "Jones Mail Room";
 		sendEmail(recipient.getEmailAddress(), recipient.getFullName(), subject, body);
 	}
 	
