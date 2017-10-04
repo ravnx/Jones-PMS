@@ -1,6 +1,10 @@
 package model.print;
 
+import java.awt.Color;
 import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.geom.AffineTransform;
+import java.awt.image.AffineTransformOp;
 import java.awt.image.BufferedImage;
 import java.awt.print.PageFormat;
 import java.awt.print.Printable;
@@ -9,6 +13,7 @@ import java.io.File;
 import java.io.IOException;
 
 import javax.imageio.ImageIO;
+
 
 public class LabelPrintable implements Printable {
 
@@ -24,9 +29,13 @@ public class LabelPrintable implements Printable {
 		        
         int result = NO_SUCH_PAGE;
         
+        Graphics2D graphics2d = (Graphics2D)graphics;
+        graphics2d.setColor(Color.BLACK);
+        graphics2d.setBackground(Color.WHITE);
+                
         if (pageIndex == 0) {
             // translate to avoid clipping
-            graphics.translate((int) pageFormat.getImageableX(), 
+            graphics2d.translate((int) pageFormat.getImageableX(), 
                 (int) pageFormat.getImageableY());   
             
 			try {
@@ -34,7 +43,11 @@ public class LabelPrintable implements Printable {
 				
 				double width = pageFormat.getImageableWidth();
 				double height = pageFormat.getImageableHeight();
-	            graphics.drawImage(read, 0, 0, (int) width, (int) height, null);
+
+				// Note: drawImage(img, x, y, width, height, observer) was not working on mac!
+				AffineTransform t = new AffineTransform();
+				t.scale(width / read.getWidth(), height / read.getHeight());
+				graphics2d.drawImage(read, new AffineTransformOp(t, AffineTransformOp.TYPE_BILINEAR), 0, 0);
 			} catch (IOException e) {
 				e.printStackTrace();
 				return result;
