@@ -144,17 +144,15 @@ public class LabelPrinter {
         // Try to print the label
         pj.setPrintable(new LabelPrintable(tempBarcodeFileName), pf);
         
-        if (pj.printDialog()) {
-	        try {
-	            pj.print();
-	        } catch (PrinterException ex) {
-	        	// Log and send a warning to the view
-	        	logger.warning("Printer failed to print label.");
-	        	viewAdaptor.displayWarning("Printer failed to print label.\n"
-	        			+ "Please reprint label from Admin panel.", 
-	        			"Reprint Label");
-	        }  
-        }
+        try {
+            pj.print();
+        } catch (PrinterException ex) {
+        	// Log and send a warning to the view
+        	logger.warning("Printer failed to print label.");
+        	viewAdaptor.displayWarning("Printer failed to print label.\n"
+        			+ "Please reprint label from Admin panel.", 
+        			"Reprint Label");
+        }  
 	}
 	
 	private double mm2Pixels(double mm) {
