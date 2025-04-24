@@ -10,7 +10,6 @@ import javax.swing.JPanel;
 import view.IViewToModelAdaptor;
 import view.MainFrame;
 import view.dialog.ChangeEmail;
-import view.dialog.EditTemplate;
 import view.dialog.EditTemplateEasy;
 
 import com.jgoodies.forms.factories.FormFactory;

@@ -1,0 +1,2 @@
+Main-Class: controller.Controller
+Class-Path: lib/forms-1.3.0.jar lib/gson-2.2.4.jar lib/jakarta.mail-2.0.1.jar lib/barcode4j-light.jar lib/jakarta.activation-2.0.1.jar
