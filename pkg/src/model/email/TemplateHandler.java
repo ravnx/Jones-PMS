@@ -1,17 +1,11 @@
 package model.email;
 
-import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
-import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.OutputStream;
-import java.io.Writer;
-import java.nio.charset.Charset;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.regex.Matcher;
@@ -32,7 +26,6 @@ public class TemplateHandler {
 	public static void setViewAdaptor (IModelToViewAdaptor _viewAdaptor) { viewAdaptor = _viewAdaptor; }
 	
 	public static HashMap<String,String> getTemplates(boolean convert, boolean comments) {
-		String RootDir = FileIO.getRootDir();
 		HashMap<String,String> result = new HashMap<String,String>();
 		
 		// Get raw file string
