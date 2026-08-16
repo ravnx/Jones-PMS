@@ -174,7 +174,9 @@ public class PanelStudentInformation extends JPanel {
 			}
 		});
 		add(btnImport, "3, 12, 3, 1, left, bottom");
-		btnImport.setToolTipText("Import student information from a csv file. Format: LastName,FirstName,NetID");
+		btnImport.setToolTipText("<html>Import students from a CSV file with a header row.<br>"
+				+ "Required columns: Last Name, First Name, NetID. Email Address is optional.<br>"
+				+ "Column order does not matter. Students not in the file are archived.</html>");
 		
 		JButton btnAddStudent = new JButton("Add");
 		btnAddStudent.addActionListener(new ActionListener() {

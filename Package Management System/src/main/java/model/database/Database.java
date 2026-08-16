@@ -6,6 +6,7 @@ import util.Person;
 import util.Pair;
 import util.PropertyHandler;
 
+import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -248,13 +249,20 @@ public class Database {
 		HashSet<String> archivePersonIDs = archiveFileNames;
 		
 		//If person file is in archive, add file to DBMaps and delete archive file
+		boolean restoredFromArchive = false;
 		if(archivePersonIDs.contains(personID)) {
 			String archiveFile = archiveDirPath + '/' + personID;
-			addPersonPackagesFromFile(archiveFile);
-			FileIO.deleteFile(archiveFile);
-			dbMaps.editPerson(person); //edit the person instead of adding
-		} else {
-			//If not in the archive, add new person to DBMaps
+			restoredFromArchive = addPersonPackagesFromFile(archiveFile);
+			if (restoredFromArchive) {
+				FileIO.deleteFile(archiveFile);
+				dbMaps.editPerson(person); //edit the person instead of adding
+			}
+		}
+
+		if (!restoredFromArchive) {
+			//Not in the archive, or the archived file could not be read: add them fresh.
+			//Their packages are lost in the unreadable case, but the person is still added
+			//and the archive file is left in place to be recovered by hand.
 			dbMaps.addPerson(person);
 		}
 		
@@ -378,132 +386,167 @@ public class Database {
 	 * Reads and adds all of the person and package information from the fileName to database maps
 	 * Note: *Does not rewrite the file, make sure that calling function will write file*
 	 */
-	private void addPersonPackagesFromFile(String fileName) {
+	private boolean addPersonPackagesFromFile(String fileName) {
 		Pair<Person,ArrayList<Package>> dbPair = readPersonFile(fileName);
+
+		// readPersonFile returns null when the file is missing or unreadable. Skip it
+		// rather than dereferencing - one damaged record must not stop the program.
+		if (dbPair == null || dbPair.first == null) {
+			logger.warning("Skipping unreadable person file: " + fileName);
+			return false;
+		}
+
 		Person person = dbPair.first;
 		ArrayList<Package> packages = dbPair.second;
-		
+
 		dbMaps.addPerson(person);
-		for (Package pkg: packages) {
-			dbMaps.addPackage(person.getPersonID(), pkg);
-		}
-	}
-		 
-	public boolean importPersonsFromCSV(String filePath) {
-		// Get a list of all people in the database
-		ArrayList<String> currentPersons = dbMaps.getAllPersonIDs();
-		
-		// Remove everyone from the database
-		for(String personID: currentPersons) {
-			deletePerson(personID);
-		}
-		
-		// Get a list of all people in the file
-		ArrayList<Person> csvPersons = new ArrayList<Person>();
-		ArrayList<Pair<String,String>> failedToRead = new ArrayList<Pair<String,String>>();
-		try {
-			csvPersons = dbIO.readDatabaseCSVFile(filePath,failedToRead);
-		} catch (FileNotFoundException e) {
-			logger.severe("Failed to find file: " + filePath);
-			viewAdaptor.displayError("Failed to find file: " + filePath, "Cannot Find File");
-		} catch (IOException e) {
-			logger.severe("Failed to read file:" + filePath);
-			viewAdaptor.displayError("Failed to read file: " + filePath, "Error");
-		} catch (FileFormatException e) {
-			logger.warning("Invalid csv file format for file: " + filePath);
-			viewAdaptor.displayError("Invalid file format for file: " + filePath +
-					"\n Please ensure the file has a header and follows the format: " +
-					"\n Last Name, First Name, Email, ID", "Invalid File Format");
-		}
-		
-		if(failedToRead.size() != 0) {
-			String errorMsg = "\nFailed to read the following people: \n" + 
-					"-------------------------------------\n"
-					+ "Person - reason\n" + 
-					"-------------------------------------\n";
-			for (Pair<String,String> error: failedToRead) {
-				errorMsg = errorMsg + error.first + " - " + error.second + '\n';
+		if (packages != null) {
+			for (Package pkg: packages) {
+				dbMaps.addPackage(person.getPersonID(), pkg);
 			}
-			logger.warning(errorMsg);
-			viewAdaptor.displayWarning(errorMsg, "Warning");
-		}	
-		
-		// Add all people to the database
-		for(Person person: csvPersons) {
-			addPerson(person);
 		}
-		
 		return true;
 	}
-	
-	public static void main(String[] args) {
-		Database db = new Database(null);
-		db.start();
-		System.out.println("Start:");
-		System.out.println("current persons = " + db.getAllCurrentPersons().toString());
-		System.out.println("current active entries = " + db.getEntries("", "").toString());
-		System.out.println("current packages = " + db.getAllCurrentPackages().toString() + '\n');
-		
-		Date now = new Date();
-		
-		db.importPersonsFromCSV("testFiles/Test Roster.csv");
-		
-		Package p1 = new Package(123+now.getTime(),"",now);
-		Package p2 = new Package(234+now.getTime(),"It's huge.\n Get it out now.",new Date(now.getTime()-100000000));
-		Package p3 = new Package(309435+now.getTime(),"",new Date(now.getTime()-200000000));
-		Package p4 = new Package(1+now.getTime(),"",new Date(now.getTime()-300000000));
-		Package p5 = new Package(2+now.getTime(),"",new Date(now.getTime()-400000000));
+		 
+	/**
+	 * Replaces the roster with the people in a CSV file.
+	 *
+	 * The file is read and validated in full before anything in the database changes, so
+	 * a file that cannot be parsed leaves the roster exactly as it was. The user is then
+	 * shown what the import will do and asked to confirm before it is applied.
+	 *
+	 * People already on the roster keep their packages and have their name and email
+	 * updated from the file. People absent from the file are archived, and can be brought
+	 * back - with their package history - by adding them again.
+	 *
+	 * @param filePath			Path to the CSV file to import
+	 * @return					True if the roster was changed
+	 */
+	public boolean importPersonsFromCSV(String filePath) {
 
-		Person navin = new Person("Pathak", "Navin", "np8@rice.edu", "np8");
-		Person chris = new Person("Henderson", "Chris", "cwh1@rice.edu", "cwh1");
-		Person christopher = new Person("Henderson", "Christopher", "cwh1@rice.edu", "cwh1");
-		Person ambi = new Person("Bobmanuel", "Ambi", "ajb6@rice.edu", "ajb6");
-		
-		db.addPerson(navin);
-		db.addPerson(chris);
-		db.addPerson(ambi);
+		/*
+		 * Step 1: read the file. Nothing is deleted until this has succeeded - an
+		 * unreadable or misformatted file must never cost the mail room its roster.
+		 */
+		ArrayList<Person> csvPersons;
+		ArrayList<Pair<String,String>> failedToRead = new ArrayList<Pair<String,String>>();
+		try {
+			csvPersons = dbIO.readDatabaseCSVFile(filePath, failedToRead);
+		} catch (FileNotFoundException e) {
+			logger.severe("Failed to find file: " + filePath);
+			viewAdaptor.displayError("Could not find the file:\n " + filePath
+					+ "\n\nNo students were changed.", "Cannot Find File");
+			return false;
+		} catch (IOException e) {
+			logger.severe("Failed to read file: " + filePath);
+			viewAdaptor.displayError("Could not read the file:\n " + filePath
+					+ "\n\nNo students were changed.", "Cannot Read File");
+			return false;
+		} catch (FileFormatException e) {
+			logger.warning("Invalid csv file format for file: " + filePath + " - " + e.getMessage());
+			viewAdaptor.displayError(e.getMessage()
+					+ "\n\nNo students were changed.", "Invalid File Format");
+			return false;
+		}
 
-		System.out.println("Added Persons:");
-		System.out.println("current persons = " + db.getAllCurrentPersons().toString());
-		System.out.println("current entries = " +db.getEntries("","").toString());
-		System.out.println("current packages = " + db.getAllCurrentPackages().toString() + '\n');
-		
-		db.checkInPackage(navin.getPersonID(),p1);
-		System.out.println("Checked In1:");
-		System.out.println("current persons = " + db.getAllCurrentPersons().toString());
-		System.out.println("current entries = " +db.getEntries("","").toString());
-		System.out.println("current packages = " + db.getAllCurrentPackages().toString() + '\n');
-		db.checkInPackage(ambi.getPersonID(),p2);
-		db.checkInPackage(chris.getPersonID(),p3);
-		System.out.println("Checked In3:");
-		System.out.println("current persons = " + db.getAllCurrentPersons().toString());
-		System.out.println("current entries = " +db.getEntries("","").toString());
-		System.out.println("current packages = " + db.getAllCurrentPackages().toString() + '\n');
-		db.checkInPackage(chris.getPersonID(),p4);
-		db.checkInPackage(navin.getPersonID(),p5);
-		
-		System.out.println("Checked In5:");
-		System.out.println("current persons = " + db.getAllCurrentPersons().toString());
-		System.out.println("current entries = " +db.getEntries("","").toString());
-		System.out.println("current packages = " + db.getAllCurrentPackages().toString() + '\n');
-		
-		db.checkOutPackage(p5.getPackageID());
-		db.checkOutPackage(p4.getPackageID());
-		db.checkOutPackage(p2.getPackageID());
-		db.checkOutPackage(p5.getPackageID());
+		String failureReport = describeFailedRows(failedToRead);
 
-		System.out.println("Checked Out:");
-		System.out.println("current persons = " + db.getAllCurrentPersons().toString());
-		System.out.println("current entries = " +db.getEntries("","").toString());
-		System.out.println("current packages = " + db.getAllCurrentPackages().toString() + '\n');
-		
-		db.deletePerson(navin.getPersonID());
-		db.editPerson(christopher);
-		
-		System.out.println("current persons = " + db.getAllCurrentPersons().toString());
-		System.out.println("current entries = " +db.getEntries("","").toString());
-		System.out.println("current packages = " + db.getAllCurrentPackages().toString());
-		
+		if (csvPersons.isEmpty()) {
+			logger.warning("No usable rows in file: " + filePath);
+			viewAdaptor.displayError("No students could be read from the file, so no students "
+					+ "were changed." + failureReport, "Nothing to Import");
+			return false;
+		}
+
+		/*
+		 * Step 2: work out what the import would do, so the user can see it before
+		 * committing to it.
+		 */
+		HashSet<String> csvPersonIDs = new HashSet<String>();
+		for (Person person : csvPersons) {
+			csvPersonIDs.add(person.getPersonID());
+		}
+
+		ArrayList<String> toArchive = new ArrayList<String>();
+		int toUpdate = 0;
+		for (String personID : dbMaps.getAllPersonIDs()) {
+			if (csvPersonIDs.contains(personID)) {
+				toUpdate++;
+			} else {
+				toArchive.add(personID);
+			}
+		}
+		int toAdd = csvPersons.size() - toUpdate;
+
+		StringBuilder summary = new StringBuilder();
+		summary.append("Import ").append(csvPersons.size()).append(" students from:\n ")
+				.append(new File(filePath).getName()).append("\n\n");
+		summary.append(" - ").append(toAdd).append(" new students will be added\n");
+		summary.append(" - ").append(toUpdate).append(" existing students will be updated\n");
+		summary.append(" - ").append(toArchive.size())
+				.append(" students are not in this file and will be archived\n");
+		if (!toArchive.isEmpty()) {
+			summary.append("   (archived students keep their packages and can be\n"
+					+ "    restored with the Add button)\n");
+		}
+		summary.append(failureReport);
+		summary.append("\nContinue?");
+
+		/*
+		 * Step 3: confirm, then apply. The roster is only touched past this point.
+		 */
+		if (!viewAdaptor.getBooleanInput(summary.toString(), "Confirm Import",
+				new String[] {"Import", "Cancel"})) {
+			logger.info("Import of " + filePath + " was cancelled by the user.");
+			return false;
+		}
+
+		for (String personID : toArchive) {
+			deletePerson(personID);
+		}
+
+		int added = 0;
+		int updated = 0;
+		for (Person person : csvPersons) {
+			if (dbMaps.getPerson(person.getPersonID()) != null) {
+				// already on the roster - refresh their details, keep their packages
+				if (editPerson(person)) { updated++; }
+			} else if (addPerson(person)) {
+				added++;
+			}
+		}
+
+		logger.info("Imported " + filePath + ": " + added + " added, " + updated
+				+ " updated, " + toArchive.size() + " archived, "
+				+ failedToRead.size() + " rows skipped.");
+
+		viewAdaptor.displayMessage("Import complete.\n\n"
+				+ " - " + added + " students added\n"
+				+ " - " + updated + " students updated\n"
+				+ " - " + toArchive.size() + " students archived"
+				+ failureReport, "Import Complete");
+
+		return true;
+	}
+
+	/*
+	 * Builds the "rows that could not be read" section shared by the confirmation and the
+	 * completion message. Returns "" when every row was usable.
+	 */
+	private String describeFailedRows(ArrayList<Pair<String,String>> failedToRead) {
+		if (failedToRead.isEmpty()) {
+			return "";
+		}
+
+		StringBuilder report = new StringBuilder();
+		report.append("\n").append(failedToRead.size())
+				.append(" row(s) in the file could not be read:\n");
+		for (Pair<String,String> failure : failedToRead) {
+			report.append("   ").append(failure.first).append(" - ").append(failure.second).append('\n');
+		}
+		logger.warning(report.toString());
+
+		return report.toString();
 	}
 	
 }

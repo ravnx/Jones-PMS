@@ -7,7 +7,7 @@ Package management utility for the Jones College Mail Room.
 Installation instructions
 -------------------------
 
-1. [Install Java SE 7+](https://www.java.com/en/download/)
+1. [Install Java 17 or newer](https://adoptium.net/)
 2. Download the Package Management System.jar file
 3. Open the Package Management System
 4. Setup email with a [Gmail](mail.google.com) account.
@@ -15,11 +15,52 @@ Installation instructions
     - Email - your Gmail email address
     - Password - your Gmail password
 5. Select a printer from the dropdown menu. Make sure that the drivers are installed.
-6. Import a CSV file containing student information (Admin -> Student Information -> Import)
-   Each line represents a student, and the CSV must have a header that reads:  
-   **Last Name,First Name,NetID,Email Address**  
-   CSV files can be generated from [Microsoft Excel](http://office.microsoft.com/en-us/excel-help/import-or-export-text-txt-or-csv-files-HP010099725.aspx) 
-   or any [other spreadsheet program] (http://www.computerhope.com/issues/ch001356.htm).
+6. Import a CSV file containing student information (Admin -> Student Information -> Import).
+   See [CSV file format](#csv-file-format) below.
+
+CSV file format
+---------------
+
+The file must have a header row. Each following line is one student. Columns are found
+by their header name, so **the order of the columns does not matter** and any columns the
+program does not recognise are ignored.
+
+| Column      | Required | Header is matched by                  |
+| ----------- | -------- | ------------------------------------- |
+| Last name   | yes      | `last`, `surname`, `family`           |
+| First name  | yes      | `first`, `given`                      |
+| NetID       | yes      | `netid`, `username`, or `id` as a word |
+| Email       | no       | `mail`                                |
+
+If the email column is missing or a cell is blank, the address is generated as
+`netid@rice.edu`.
+
+All of these headers work:
+
+    Last Name,First Name,NetID,Email Address
+    Last Name,First Name,Email Address,ID
+    netid,first,last,email
+    First Name,Last Name,NetID
+
+A value containing a comma must be quoted, for example `"Smith, Jr."`. Blank lines are
+skipped. Rows that cannot be used - no NetID, no name, or a NetID that appears twice -
+are listed for you and skipped; the rest of the file still imports.
+
+The import shows you what it will do and asks for confirmation before it changes
+anything. If the file cannot be read at all, no students are changed.
+
+CSV files can be generated from [Microsoft Excel](http://office.microsoft.com/en-us/excel-help/import-or-export-text-txt-or-csv-files-HP010099725.aspx) 
+or any [other spreadsheet program] (http://www.computerhope.com/issues/ch001356.htm).
+
+Building from source
+--------------------
+
+Requires a JDK (17 or newer) and Maven. From the `Package Management System` directory:
+
+    mvn clean package
+
+This produces `target/package-manager-1.0.0-jar-with-dependencies.jar`, which is the
+runnable jar. `mvn test` runs the test suite on its own.
 
 Usage instructions
 ------------------
@@ -90,15 +131,14 @@ all new students instead of adding them individually. To do so,
 
 1. Go to the Student Information tab (Admin -> Student Information)
 2. Click on the Import button at the lower left hand corner.
-3. Navigate to the CSV file that you have prepared. For this file,
-   each line represents a student, and the CSV must have a header that reads:  
-   **Last Name,First Name,NetID,Email Address**  
-   CSV files can be generated from [Microsoft Excel](http://office.microsoft.com/en-us/excel-help/import-or-export-text-txt-or-csv-files-HP010099725.aspx) 
-   or any [other spreadsheet program] (http://www.computerhope.com/issues/ch001356.htm).
-4. Open the file and follow any instructions that pop up.
+3. Navigate to the CSV file that you have prepared. See [CSV file format](#csv-file-format).
+4. Read the summary that pops up. It tells you how many students will be added, updated
+   and archived, and lists any rows it could not read. Nothing changes until you confirm.
 
-Note: This will archive all students not in the CSV file. To re add them, use the add button
-on the same tab.
+Note: This will archive all students not in the CSV file. Archived students keep their
+package history — to bring one back, use the Add button on the same tab and their packages
+return with them. Students already on the roster keep their packages and have their name
+and email updated from the file.
 
 #### Add New Student
 If a student was not in the CSV file, you can add them:

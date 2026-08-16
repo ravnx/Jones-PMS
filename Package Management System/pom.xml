@@ -8,8 +8,12 @@
   <version>1.0.0</version>
 
   <properties>
-    <maven.compiler.source>1.8</maven.compiler.source>
-    <maven.compiler.target>1.8</maven.compiler.target>
+    <!-- 'release' replaces source/target: it also pins the platform API, so a build
+         on a newer JDK cannot accidentally link against classes that do not exist
+         on the target. source/target 1.8 still compiles on JDK 26 but warns that it
+         is obsolete and slated for removal. -->
+    <maven.compiler.release>17</maven.compiler.release>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
   </properties>
 
   <dependencies>
@@ -23,16 +27,36 @@
       <artifactId>jakarta.mail</artifactId>
       <version>2.0.1</version>
     </dependency>
+    <!-- The view layer uses FormFactory.*_COLSPEC constants throughout. Those moved to
+         FormSpecs in the com.jgoodies:jgoodies-forms artifact (1.6.0+), so stay on the
+         older com.jgoodies:forms coordinate until the panels are updated. -->
     <dependency>
-      <groupId>jgoodies</groupId>
+      <groupId>com.jgoodies</groupId>
       <artifactId>forms</artifactId>
-      <version>1.0.5</version>
+      <version>1.2.1</version>
     </dependency>
-    <!-- Add barcode4j if it exists in Maven Central -->
+    <!-- barcode4j is published under net.sf.barcode4j, not org.krysalis. -->
+    <dependency>
+      <groupId>net.sf.barcode4j</groupId>
+      <artifactId>barcode4j</artifactId>
+      <version>2.1</version>
+    </dependency>
+
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <version>5.11.4</version>
+      <scope>test</scope>
+    </dependency>
   </dependencies>
 
   <build>
     <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <version>3.5.4</version>
+      </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-assembly-plugin</artifactId>
