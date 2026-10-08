@@ -100,27 +100,51 @@ public class PanelPickUp extends JPanel {
 	}
 	
 	private void confirmAndCheckOut() {
-		
+
 		String input = textFieldPkgInput.getText().replaceAll("[^0-9]", "");
-		long pkgID = Long.valueOf(input);
-		// Get person information and get response from dialog for confirmation
+
+		// Nothing was scanned. A stray Enter on an empty field is not worth a dialog -
+		// on a scanner kiosk it happens constantly.
+		if(input.isEmpty()) {
+			return;
+		}
+
+		long pkgID;
+		try {
+			pkgID = Long.parseLong(input);
+		} catch (NumberFormatException e) {
+			// More digits than a package ID can hold, so it cannot match anything
+			JOptionPane.showMessageDialog(frame, "The package was not found.",
+					"Package Not Found", JOptionPane.DEFAULT_OPTION);
+			return;
+		}
+
 		Package pkg = modelAdaptor.getPackage(pkgID);
-		Person owner = modelAdaptor.getPackageOwner(pkgID);
-		
+
 		// If the package doesn't exist, warn the user
 		if(pkg == null) {
 			JOptionPane.showMessageDialog(frame, "The package was not found.",
 					"Package Not Found", JOptionPane.DEFAULT_OPTION);
 			return;
 		}
-		
+
 		// If the package is already checked out, warn the user
 		if(pkg.getCheckOutDate() != null) {
 			JOptionPane.showMessageDialog(frame, "The package is already checked out.",
 					"Checked Out", JOptionPane.DEFAULT_OPTION);
 			return;
 		}
-		
+
+		// Look the owner up only once the package is known to exist
+		Person owner = modelAdaptor.getPackageOwner(pkgID);
+		if(owner == null) {
+			JOptionPane.showMessageDialog(frame,
+					"This package has no student attached to it.\n"
+					+ "Please check it out from the Packages tab of the admin panel.",
+					"Owner Not Found", JOptionPane.WARNING_MESSAGE);
+			return;
+		}
+
 		// Get confirmation that the package is for the user
 		ConfirmPickUp confirmPickUpDlg = new ConfirmPickUp(frame,
 				owner.getFullName(),owner.getPersonID());

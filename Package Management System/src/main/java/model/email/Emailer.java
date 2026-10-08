@@ -75,21 +75,37 @@ public class Emailer {
 		this.senderAlias = propHandler.getProperty("email.alias");
 
 		// warn the user if the email properties were not loaded
-		while(this.senderAddress == null || this.senderPassword == null || this.senderAlias == null) {
+		if(!isConfigured()) {
 			logger.warning("Failed to load email properties.");
 			viewAdaptor.displayMessage("Email information was not loaded from file.\n"
-					+ "Please change email information in the next window.", 
-					"Email Not Loaded");			
-			changeEmail();
+					+ "Please change email information in the next window.",
+					"Email Not Loaded");
+
+			// If the user cancels, start with email switched off rather than reopening
+			// the dialog forever - on a fresh install there was previously no way past it.
+			if(!changeEmail() || !isConfigured()) {
+				logger.warning("Email setup was cancelled. Email is disabled for this session.");
+				viewAdaptor.displayMessage("Emails will not be sent until email information "
+						+ "is entered.\nYou can enter it from Admin -> Email and Printer.",
+						"Email Disabled");
+				return;
+			}
 		}
-		
+
 		// attempt to connect to the mail server and alert user if it fails
 
 		attemptConnection();
-		
+
 		if(checkReminder()) {
 			sendAllReminders(activeEntriesSortedByPerson);
 		}
+	}
+
+	/**
+	 * True when an address, password and alias are all available to send with.
+	 */
+	public boolean isConfigured() {
+		return senderAddress != null && senderPassword != null && senderAlias != null;
 	}
 	
 	/**
@@ -125,12 +141,11 @@ public class Emailer {
 				connect();
 				closeConnection();
 				retry = false;
-			} catch (AuthenticationFailedException e){ 
-					System.err.println("Auth failed: " + e);
+			} catch (AuthenticationFailedException e){
+					// Note: never pass the message to a format method - a '%' in an SMTP
+					// error would then throw from inside this handler.
+					logger.warning("Authentication failed: " + e.getMessage());
 
-					System.err.format(e.toString());
-					e.printStackTrace();
-					
 					viewAdaptor.displayMessage("Incorrect username or password.\n","");
 					
 					
@@ -162,9 +177,14 @@ public class Emailer {
 	 * @return							Success of sending all reminders
 	 */
 	public boolean sendAllReminders(ArrayList<Pair<Person,Package>> allEntriesSortedByPerson) {
-		
+
+		if(!isConfigured()) {
+			logger.warning("Reminder emails skipped: no email account is configured.");
+			return false;
+		}
+
 		//collect ArrayList of pairs of person,ArrayList<Package>
-		ArrayList<Pair<Person,ArrayList<Package>>> remindList = collectPairs(allEntriesSortedByPerson);		
+		ArrayList<Pair<Person,ArrayList<Package>>> remindList = collectPairs(allEntriesSortedByPerson);
 		try {
 			connect();
 			// iterate through ArrayList, sending emails if the person has packages
@@ -195,7 +215,12 @@ public class Emailer {
 	 * have a new package 
 	 */
 	public boolean sendPackageNotification(Person recipient, Package pkg) {
-	
+
+		if(!isConfigured()) {
+			logger.warning("Notification skipped: no email account is configured.");
+			return false;
+		}
+
 		// Find variable values
 		Map<String,String> variables = new HashMap<String,String>();
 		variables.put("COMMENT", pkg.getComment());

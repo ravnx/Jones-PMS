@@ -116,15 +116,43 @@ public class PackageManager {
 	 * Database functions
 	 */
 	
+	/** Returned by {@link #checkInPackage} when the package could not be stored. */
+	public static final long CHECK_IN_FAILED = -1L;
+
+	/*
+	 * How many consecutive IDs to try before giving up. The ID is a timestamp to the
+	 * second, so this is the number of packages that can be checked in within the same
+	 * second - far beyond what one person at a counter can do.
+	 */
+	private static final int MAX_ID_ATTEMPTS = 100;
+
+	/**
+	 * Checks a package in and returns its ID.
+	 *
+	 * The ID is the check-in time to the second, so two packages checked in during the
+	 * same second would collide. When that happens the next free ID is used instead.
+	 * Previously the collision was ignored and the caller was handed an ID that had not
+	 * been stored, so the label printed and the email sent both pointed at the earlier
+	 * package - and therefore at the wrong student.
+	 *
+	 * @param personID			ID of the student the package is for
+	 * @param comment			Optional comment to show in the notification
+	 * @return					The new package's ID, or {@link #CHECK_IN_FAILED}
+	 */
 	public long checkInPackage(String personID, String comment) {
-		// create a packageID
+		// create a packageID from the current time
 		Date now = new Date();
 		SimpleDateFormat ft = new SimpleDateFormat("yyyyMMddHHmmss");
-		long pkgID = Long.valueOf(ft.format(now)).longValue();
-		
-		Package pkg = new Package(pkgID, comment, now);
-		db.checkInPackage(personID, pkg);
-		return pkg.getPackageID();
+		long baseID = Long.parseLong(ft.format(now));
+
+		for (int attempt = 0; attempt < MAX_ID_ATTEMPTS; attempt++) {
+			Package pkg = new Package(baseID + attempt, comment, now);
+			if (db.checkInPackage(personID, pkg)) {
+				return pkg.getPackageID();
+			}
+		}
+
+		return CHECK_IN_FAILED;
 	}
 	
 	public boolean checkOutPackage(long pkgID) {

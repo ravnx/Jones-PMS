@@ -56,13 +56,20 @@ public class FileIO {
 			String dirName) {
 		ArrayList<String> results = new ArrayList<String>();
 		File[] files = new File(dirName).listFiles();
-		
+
+		// listFiles returns null when the directory does not exist or cannot be read.
+		// Treat that as "no files" - callers use this to look for archived students,
+		// and a missing directory simply means there are none.
+		if (files == null) {
+			return results;
+		}
+
 		for (File file: files) {
 			if(file.isFile() && !file.getName().startsWith(".")) {
 				results.add(file.getName());
 			}
 		}
-		
+
 		return results;
 	}
 

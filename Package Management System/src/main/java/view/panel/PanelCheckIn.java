@@ -115,42 +115,60 @@ public class PanelCheckIn extends JPanel {
 	 */
 
 	private void checkInSelection() {
-		
+
 		Person owner = comboBoxStudentName.getSelectedPerson();
 
-		
 		if (owner == null) {
-			JOptionPane.showMessageDialog(frame, "Please choose a name from the provided list.", 
+			JOptionPane.showMessageDialog(frame, "Please choose a name from the provided list.",
 					"Invalid Person", JOptionPane.WARNING_MESSAGE);
 			comboBoxStudentName.getEditor().getEditorComponent().requestFocus();
-		} else {
-			// check into database
-			long pkgID = modelAdaptor.checkInPackage(owner.getPersonID(), textFieldComment.getText());
-			
-			// print a label
-			if (!modelAdaptor.printLabel(pkgID)) {
-				JOptionPane.showMessageDialog(frame, "Failed to print the package label.\n"
-						+ "Please reprint the label from the packages tab of the admin panel.", 
-						"Failed Print", JOptionPane.WARNING_MESSAGE);
-			}
-			
-			// send a package notification
-			if (!modelAdaptor.sendPackageNotification(owner.getPersonID(), pkgID)) {
-				JOptionPane.showMessageDialog(frame, "Failed to send package notification.\n"
-						+ "Please resend notification from the packages tab of the admin panel.", 
-						"Failed Notification", JOptionPane.WARNING_MESSAGE);
-			}
-			
-			// notify success
-			JOptionPane.showMessageDialog(frame, "Package for " + owner.getFullName() + " successfully checked in!", 
-					"Success", JOptionPane.INFORMATION_MESSAGE);
+			return;
 		}
-		
-		// reset fields
+
+		// Check into the database. A negative ID means the package was not stored, so
+		// there is nothing to print a label for or send a notification about - printing
+		// one anyway would put a barcode on the box that belongs to a different package.
+		long pkgID = modelAdaptor.checkInPackage(owner.getPersonID(), textFieldComment.getText());
+
+		if (pkgID < 0) {
+			JOptionPane.showMessageDialog(frame,
+					"The package could not be checked in, and was not saved.\n"
+					+ "No label was printed and no email was sent.\n\n"
+					+ "Please try again.",
+					"Check In Failed", JOptionPane.ERROR_MESSAGE);
+			resetFields();
+			return;
+		}
+
+		boolean printed = modelAdaptor.printLabel(pkgID);
+		boolean notified = modelAdaptor.sendPackageNotification(owner.getPersonID(), pkgID);
+
+		// Report what actually happened. Previously each failure got its own dialog and
+		// then success was announced regardless, so both could fail and still say it worked.
+		StringBuilder message = new StringBuilder();
+		message.append("Package for ").append(owner.getFullName()).append(" was checked in.\n\n");
+		message.append(printed
+				? " - Label printed\n"
+				: " - Label NOT printed. Reprint it from the Packages tab of the admin panel.\n");
+		message.append(notified
+				? " - Notification emailed\n"
+				: " - Notification NOT sent. Resend it from the Packages tab of the admin panel.\n");
+
+		boolean allGood = printed && notified;
+		JOptionPane.showMessageDialog(frame, message.toString(),
+				allGood ? "Success" : "Checked In With Problems",
+				allGood ? JOptionPane.INFORMATION_MESSAGE : JOptionPane.WARNING_MESSAGE);
+
+		resetFields();
+	}
+
+	/**
+	 * Clears the entry fields and returns focus to the student box
+	 */
+	private void resetFields() {
 		textFieldComment.setText("");
 		comboBoxStudentName.getEditor().setItem("");
 		comboBoxStudentName.getEditor().getEditorComponent().requestFocus();
-
 	}
 
 	public void init() {
