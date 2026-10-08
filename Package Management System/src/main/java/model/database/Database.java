@@ -34,6 +34,7 @@ public class Database {
 	private String currentDirPath;
 	private String archiveDirPath;
 	private String damagedDirPath;
+	private String progDirPath;
 	
 	private Logger logger;
 
@@ -41,7 +42,7 @@ public class Database {
 		
 		this.viewAdaptor = viewAdaptor;
 		
-		String progDirPath = PropertyHandler.getInstance().getProperty("program_directory");
+		this.progDirPath = PropertyHandler.getInstance().getProperty("program_directory");
 		this.packageDirPath = progDirPath + "/packages";
 		this.currentDirPath = packageDirPath + "/current";
 		this.archiveDirPath = packageDirPath + "/archive";
@@ -62,6 +63,9 @@ public class Database {
 	public void start() {
 		// check if rootFolder and subfolders exist, create if they do not.
 		FileIO.makeDirs(new String[] {packageDirPath, currentDirPath, archiveDirPath});
+
+		// copy the records before anything this session can change them
+		Backup.backUp(progDirPath);
 		
 		// read the active package database
 		readCurrentDatabase();

@@ -2,7 +2,7 @@ package model.database;
 
 import java.io.BufferedReader;
 import java.io.DataInputStream;
-import java.io.DataOutputStream;
+import java.io.ByteArrayInputStream;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
@@ -14,7 +14,13 @@ import java.nio.charset.CharacterCodingException;
 import java.nio.charset.Charset;
 import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -26,6 +32,7 @@ import util.Person;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.gson.JsonParseException;
 import com.google.gson.reflect.TypeToken;
 /**
  * Class contains functions for writing database entries to file and
@@ -39,9 +46,26 @@ public class DBFileIO {
 		this.logger = Logger.getLogger(DBFileIO.class.getName());
 	}
 
+	/*
+	 * Dates are written as ISO-8601 by DateAdapter, which also reads every older form.
+	 */
+	private static Gson gson() {
+		return new GsonBuilder()
+				.setPrettyPrinting()
+				.registerTypeAdapter(Date.class, new DateAdapter())
+				.create();
+	}
+
+	private static final Type PAIR_TYPE = new TypeToken<Pair<Person,ArrayList<Package>>>(){}.getType();
+
 	/**
 	 * Function that will write a pair containing a person object and all associated packages
 	 * to the specified JSON file.
+	 *
+	 * The file is plain UTF-8 JSON. It is written to a hidden temporary file in the same
+	 * folder and then moved over the old one, so a crash or power cut part way through
+	 * leaves the previous version intact rather than a half-written file. Older versions
+	 * used DataOutputStream.writeUTF, which also cannot write more than 64 KB.
 	 *
 	 * @param DBPair			Pair containing a person and ArrayList of all packages associated
 	 * @param filePath			Path to the file to be written
@@ -51,22 +75,31 @@ public class DBFileIO {
 	public void writeDatabaseJSONFile(Pair<Person,ArrayList<Package>> DBPair, String filePath)
 			throws IOException,FileNotFoundException {
 
-		// initialize gson object
-		Gson gson = new GsonBuilder().setPrettyPrinting().create();
+		byte[] json = gson().toJson(DBPair).getBytes(StandardCharsets.UTF_8);
 
-		// open file
-		FileOutputStream outfile = new FileOutputStream(filePath);
-		DataOutputStream outStream = new DataOutputStream(outfile);
-
-		String json = gson.toJson(DBPair); // serialize output
-		outStream.writeUTF(json); // write output to file
-
-		outfile.close();
-
+		Path target = Paths.get(filePath);
+		// a leading "." keeps the temporary file out of directory listings of person files
+		Path temp = Files.createTempFile(target.toAbsolutePath().getParent(),
+				"." + target.getFileName() + ".", ".tmp");
+		try {
+			try (FileOutputStream out = new FileOutputStream(temp.toFile())) {
+				out.write(json);
+				out.getFD().sync(); // on disk before it replaces the old file
+			}
+			try {
+				Files.move(temp, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+			} catch (AtomicMoveNotSupportedException e) {
+				Files.move(temp, target, StandardCopyOption.REPLACE_EXISTING);
+			}
+		} finally {
+			Files.deleteIfExists(temp);
+		}
 	}
+
 	/**
 	 * Function that will read a specified JSON file and return the person and packages
-	 * contained within
+	 * contained within. Reads both plain JSON files and the length-prefixed files written
+	 * by versions before 2.0, which are converted the next time they are saved.
 	 *
 	 * @param filePath			Path to the file with the person information
 	 * @return					Returns a pair of person and packages in arrayList object
@@ -76,21 +109,28 @@ public class DBFileIO {
 	public Pair<Person,ArrayList<Package>> readDatabaseJSONFile(String filePath)
 			throws IOException,FileNotFoundException {
 
-		// initialize gson object
-		Gson gson = new Gson();
+		byte[] bytes;
+		try (FileInputStream in = new FileInputStream(filePath)) {
+			bytes = in.readAllBytes();
+		}
 
-		// open file to read
-		FileInputStream infile = new FileInputStream(filePath);
-		DataInputStream inStream = new DataInputStream(infile);
+		if (isLegacyFormat(bytes)) {
+			try {
+				String json = new DataInputStream(new ByteArrayInputStream(bytes)).readUTF();
+				return gson().fromJson(json, PAIR_TYPE);
+			} catch (IOException | JsonParseException e) {
+				// the length prefix matched by coincidence - read it as plain JSON below
+			}
+		}
+		return gson().fromJson(new String(bytes, StandardCharsets.UTF_8), PAIR_TYPE);
+	}
 
-		// read model.database file
-		String json = inStream.readUTF();
-
-		inStream.close();
-
-		// Obtain the type of the deserialized output (see gson documentation)
-		Type PairType = new TypeToken<Pair<Person,ArrayList<Package>>>(){}.getType();
-		return gson.fromJson(json, PairType); // return deserialized output
+	/*
+	 * writeUTF files start with a two-byte length that is exactly the rest of the file.
+	 */
+	private static boolean isLegacyFormat(byte[] bytes) {
+		return bytes.length >= 2
+				&& (((bytes[0] & 0xff) << 8) | (bytes[1] & 0xff)) == bytes.length - 2;
 	}
 
 	/*

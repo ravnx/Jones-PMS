@@ -1,6 +1,7 @@
 Package-Management-System
 =========================
 Author: Navin Pathak
+Currently Maintained by: Michael Palmer <michaelp@gmail.com>
 
 Package management utility for the Jones College Mail Room.
 
@@ -10,6 +11,7 @@ Installation instructions
 1. [Install Java 17 or newer](https://adoptium.net/)
 2. Get the runnable jar (`package-manager-<version>-jar-with-dependencies.jar`).
    It is not kept in the repository; build it as described in [Building from source](#building-from-source).
+   Or Michael can build one if you email him above for the mailroom PC.
 3. Open the Package Management System
 4. Setup email with a [Gmail](mail.google.com) account.
     - Name - the name that will be sending all of the emails. Example - Jones College Mail Room, Mail Room, etc.
@@ -63,6 +65,26 @@ Requires a JDK (17 or newer) and Maven. From the `Package Management System` dir
 
 This produces `target/package-manager-<version>-jar-with-dependencies.jar`, which is the
 runnable jar. The version is set in `pom.xml` and shown in the window title. `mvn test` runs the test suite on its own.
+
+Data and backups
+----------------
+
+Everything the program stores is in `Documents/package_management_system` in the user's
+home folder, not next to the jar, so replacing the jar keeps all data:
+
+- `packages/current` and `packages/archive` - one file per student, with their packages
+- `packages/damaged` - any student file that could not be read, set aside to recover by hand
+- `props/config.properties` - email account, printer and reminder settings
+- `email-template.txt` - the email wording
+- `backups` - a zip of the student records and email template, made each time the program
+  starts. The newest 30 are kept. The email password is not included.
+
+To restore a backup, close the program and unzip the backup into
+`Documents/package_management_system`, replacing the files there.
+
+Version 2.0 saves student files in a new format, converting each one the first time it is
+saved. Older versions cannot read the new format, so to go back to an older version,
+restore a backup made before upgrading.
 
 Usage instructions
 ------------------
