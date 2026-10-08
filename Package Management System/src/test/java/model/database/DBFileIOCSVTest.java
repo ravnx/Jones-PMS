@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -241,5 +242,45 @@ class DBFileIOCSVTest {
 		String path = tempDir.resolve("does-not-exist.csv").toString();
 
 		assertThrows(IOException.class, () -> dbIO.readDatabaseCSVFile(path, failed));
+	}
+
+	// ---- which column is the ID ----------------------------------------------
+
+	@Test
+	void prefersNetIdOverAGenericIdColumnToItsLeft() throws Exception {
+		// Registrar exports put a numeric Student ID first. Keying on it would match
+		// nobody on a NetID-keyed roster, and the import would archive everyone.
+		String path = write("Last Name,First Name,Student ID,NetID,Email\n"
+				+ "Pathak,Navin,S01234567,np8,np8@rice.edu\n");
+
+		assertEquals("np8", only(dbIO.readDatabaseCSVFile(path, failed)).getPersonID());
+	}
+
+	@Test
+	void usesAGenericIdColumnWhenThereIsNoNetId() throws Exception {
+		String path = write("Last Name,First Name,Email,ID\nPathak,Navin,np8@rice.edu,np8\n");
+
+		assertEquals("np8", only(dbIO.readDatabaseCSVFile(path, failed)).getPersonID());
+	}
+
+	// ---- encodings -----------------------------------------------------------
+
+	@Test
+	void readsAWindowsExcelExportWithoutCorruptingAccents() throws Exception {
+		// Excel's plain "CSV (Comma delimited)" on Windows writes cp1252, not UTF-8
+		Path file = tempDir.resolve("roster.csv");
+		Files.write(file, "Last Name,First Name,NetID\nGarc\u00eda,Jos\u00e9,jg1\n"
+				.getBytes(Charset.forName("windows-1252")));
+
+		Person person = only(dbIO.readDatabaseCSVFile(file.toString(), failed));
+		assertEquals("Jos\u00e9", person.getFirstName());
+		assertEquals("Garc\u00eda", person.getLastName());
+	}
+
+	@Test
+	void stillReadsUtf8Accents() throws Exception {
+		String path = write("Last Name,First Name,NetID\nGarc\u00eda,Jos\u00e9,jg1\n");
+
+		assertEquals("Jos\u00e9", only(dbIO.readDatabaseCSVFile(path, failed)).getFirstName());
 	}
 }

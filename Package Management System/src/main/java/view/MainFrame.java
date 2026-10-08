@@ -30,8 +30,11 @@ public class MainFrame extends JFrame {
 	 * Create the frame.
 	 */
 	public MainFrame(IViewToModelAdaptor adpt) {
-		setTitle("Package Management System");
-		
+		// The version comes from the jar manifest, so it is null when run from an IDE
+		String version = MainFrame.class.getPackage().getImplementationVersion();
+		setTitle(version == null ? "Package Management System"
+				: "Package Management System " + version);
+
 		// set model adaptor
 		this.modelAdaptor = adpt;
 		this.frame = this;

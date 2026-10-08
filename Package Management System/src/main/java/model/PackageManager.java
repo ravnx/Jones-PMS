@@ -140,6 +140,11 @@ public class PackageManager {
 	 * @return					The new package's ID, or {@link #CHECK_IN_FAILED}
 	 */
 	public long checkInPackage(String personID, String comment) {
+		// the student may have been archived since the check-in list was loaded
+		if (db.getPerson(personID) == null) {
+			return CHECK_IN_FAILED;
+		}
+
 		// create a packageID from the current time
 		Date now = new Date();
 		SimpleDateFormat ft = new SimpleDateFormat("yyyyMMddHHmmss");

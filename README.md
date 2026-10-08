@@ -8,12 +8,14 @@ Installation instructions
 -------------------------
 
 1. [Install Java 17 or newer](https://adoptium.net/)
-2. Download the Package Management System.jar file
+2. Get the runnable jar (`package-manager-<version>-jar-with-dependencies.jar`).
+   It is not kept in the repository; build it as described in [Building from source](#building-from-source).
 3. Open the Package Management System
 4. Setup email with a [Gmail](mail.google.com) account.
     - Name - the name that will be sending all of the emails. Example - Jones College Mail Room, Mail Room, etc.
     - Email - your Gmail email address
-    - Password - your Gmail password
+    - Password - a Gmail [App Password](https://myaccount.google.com/apppasswords), not the
+      normal account password. Google requires 2-Step Verification to be on to create one.
 5. Select a printer from the dropdown menu. Make sure that the drivers are installed.
 6. Import a CSV file containing student information (Admin -> Student Information -> Import).
    See [CSV file format](#csv-file-format) below.
@@ -59,8 +61,8 @@ Requires a JDK (17 or newer) and Maven. From the `Package Management System` dir
 
     mvn clean package
 
-This produces `target/package-manager-1.0.0-jar-with-dependencies.jar`, which is the
-runnable jar. `mvn test` runs the test suite on its own.
+This produces `target/package-manager-<version>-jar-with-dependencies.jar`, which is the
+runnable jar. The version is set in `pom.xml` and shown in the window title. `mvn test` runs the test suite on its own.
 
 Usage instructions
 ------------------

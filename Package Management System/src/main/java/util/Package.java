@@ -6,9 +6,11 @@ import java.util.Date;
  */
 
 public class Package {
-	private final long packageID;
+	// packageID and checkInDate never change after construction, but are not final:
+	// Gson sets them when reading a person file, which newer Java versions warn about.
+	private long packageID;
 	private String comment;
-	private final Date checkInDate;
+	private Date checkInDate;
 	private Date checkOutDate;
 	private boolean notificationSent;
 	

@@ -5,7 +5,8 @@
 
   <groupId>com.intrepid</groupId>
   <artifactId>package-manager</artifactId>
-  <version>1.0.0</version>
+  <version>1.1.0</version>
+  <name>Package Management System</name>
 
   <properties>
     <!-- 'release' replaces source/target: it also pins the platform API, so a build
@@ -72,6 +73,9 @@
           <archive>
             <manifest>
               <mainClass>controller.Controller</mainClass>
+              <!-- Writes Implementation-Version into the manifest; MainFrame shows it
+                   in the window title so users can say which release they are on. -->
+              <addDefaultImplementationEntries>true</addDefaultImplementationEntries>
             </manifest>
           </archive>
           <descriptorRefs>

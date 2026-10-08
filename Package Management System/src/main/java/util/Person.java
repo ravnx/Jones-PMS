@@ -8,7 +8,7 @@ public class Person {
 	private String lastName;
 	private String firstName;
 	private String emailAddress;
-	private final String personID;
+	private String personID; // not final: Gson sets it when reading a person file
 	
 	public Person(String lastName, String firstName, String emailAddress, String personID) {
 		this.lastName = lastName;

@@ -61,7 +61,12 @@ public class Controller{
 		init();
 		
 		Controller.logger = Logger.getLogger(Controller.class.getName());
-		
+
+		// Record which build wrote this log; the version is null when run from an IDE
+		String version = Controller.class.getPackage().getImplementationVersion();
+		logger.info("Package Management System " + (version == null ? "(development build)" : version)
+				+ " starting on Java " + System.getProperty("java.version"));
+
 		/* Initializes the view */
 		viewFrame = new MainFrame(new IViewToModelAdaptor() {
 

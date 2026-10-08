@@ -107,6 +107,14 @@ class PackageIdCollisionTest {
 	/**
 	 * A view adaptor that answers nothing, so the model can run without a window.
 	 */
+	@Test
+	void checkingInForAStudentWhoWasJustArchivedReportsFailure() {
+		// The check-in name list can still show a student archived by an import
+		manager.deletePerson("cwh1");
+
+		assertEquals(PackageManager.CHECK_IN_FAILED, manager.checkInPackage("cwh1", ""));
+	}
+
 	private static class SilentViewAdaptor implements IModelToViewAdaptor {
 		public void displayMessage(String message, String title) { }
 		public void displayError(String error, String title) { }

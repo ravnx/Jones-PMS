@@ -7,9 +7,11 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.InputStreamReader;
+import java.io.StringReader;
 import java.lang.reflect.Type;
-import java.nio.charset.CharsetDecoder;
+import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.Charset;
 import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -111,7 +113,7 @@ public class DBFileIO {
 	 * 	email address	"mail"
 	 * 	last name		"last", "surname", "family"
 	 * 	first name		"first", "given"
-	 * 	ID				"id", "netid", "net id", "username"
+	 * 	ID				"netid", "net id", "username" - or "id" when none of those
 	 *
 	 * Last name, first name and ID are required; the email column is optional and an
 	 * address is generated from the ID when it is missing or blank.
@@ -135,14 +137,12 @@ public class DBFileIO {
 		ArrayList<Person> personList = new ArrayList<Person>();
 		HashSet<String> personIDSet = new HashSet<String>();
 
-		// Decode as UTF-8, substituting rather than failing on stray bytes, so that a
-		// spreadsheet exported in another encoding still imports instead of aborting.
-		CharsetDecoder decoder = StandardCharsets.UTF_8.newDecoder()
-				.onMalformedInput(CodingErrorAction.REPLACE)
-				.onUnmappableCharacter(CodingErrorAction.REPLACE);
+		byte[] bytes;
+		try (FileInputStream in = new FileInputStream(filePath)) {
+			bytes = in.readAllBytes();
+		}
 
-		try (BufferedReader br = new BufferedReader(
-				new InputStreamReader(new FileInputStream(filePath), decoder))) {
+		try (BufferedReader br = new BufferedReader(new StringReader(decodeCsv(bytes)))) {
 
 			// handle the header
 			String headerLine = br.readLine();
@@ -199,11 +199,33 @@ public class DBFileIO {
 	}
 
 	/*
+	 * Decodes the file as UTF-8 when it is valid UTF-8, and otherwise as Windows-1252,
+	 * which is what Excel's plain "CSV (Comma delimited)" export writes on Windows.
+	 * Decoding that as UTF-8 would turn "José" into "Jos?" and the import would then
+	 * overwrite the correctly spelled name already on the roster.
+	 */
+	static String decodeCsv(byte[] bytes) {
+		try {
+			return StandardCharsets.UTF_8.newDecoder()
+					.onMalformedInput(CodingErrorAction.REPORT)
+					.onUnmappableCharacter(CodingErrorAction.REPORT)
+					.decode(ByteBuffer.wrap(bytes)).toString();
+		} catch (CharacterCodingException e) {
+			return new String(bytes, Charset.forName("windows-1252"));
+		}
+	}
+
+	/*
 	 * Locates each required column by its header text. Returns an array indexed by the
 	 * role constants, holding the column index for that role or -1 when absent.
 	 */
 	private static int[] mapColumns(List<String> header) throws FileFormatException {
 		int[] columns = {-1, -1, -1, -1};
+
+		// A NetID or username column is the key whenever there is one. A plain "ID"
+		// column is only used without one: registrar exports often have a numeric
+		// "Student ID" before "NetID", and keying on that would archive the whole roster.
+		int genericIdColumn = -1;
 
 		for (int i = 0; i < header.size(); i++) {
 			String text = header.get(i).toLowerCase(Locale.ROOT).replace('_', ' ').trim();
@@ -215,8 +237,13 @@ public class DBFileIO {
 				role = LAST;
 			} else if (text.contains("first") || text.contains("given")) {
 				role = FIRST;
-			} else if (isIdHeader(text)) {
+			} else if (isNetIdHeader(text)) {
 				role = ID;
+			} else if (text.matches(".*\\bid\\b.*")) {
+				if (genericIdColumn == -1) {
+					genericIdColumn = i;
+				}
+				continue;
 			} else {
 				continue; // a column we do not use
 			}
@@ -225,6 +252,10 @@ public class DBFileIO {
 			if (columns[role] == -1) {
 				columns[role] = i;
 			}
+		}
+
+		if (columns[ID] == -1) {
+			columns[ID] = genericIdColumn;
 		}
 
 		// email is optional - it is generated from the ID when absent
@@ -245,14 +276,14 @@ public class DBFileIO {
 	}
 
 	/*
-	 * True when a header names an identifier column. "id" is matched as a whole word so
-	 * that an unrelated column such as "Resident Hall" is not mistaken for one.
+	 * True when a header names a NetID column. A generic "ID" header is matched
+	 * separately, as a whole word so that a column such as "Resident Hall" is not
+	 * mistaken for one, and only used when there is no NetID column.
 	 */
-	private static boolean isIdHeader(String text) {
+	private static boolean isNetIdHeader(String text) {
 		return text.contains("netid")
 				|| text.contains("net id")
-				|| text.contains("username")
-				|| text.matches(".*\\bid\\b.*");
+				|| text.contains("username");
 	}
 
 	/*

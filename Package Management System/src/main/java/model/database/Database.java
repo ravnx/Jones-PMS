@@ -9,10 +9,13 @@ import util.PropertyHandler;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.logging.Logger;
+
+import com.google.gson.JsonParseException;
 
 import model.IModelToViewAdaptor;
 
@@ -30,6 +33,7 @@ public class Database {
 	private String packageDirPath;
 	private String currentDirPath;
 	private String archiveDirPath;
+	private String damagedDirPath;
 	
 	private Logger logger;
 
@@ -41,6 +45,7 @@ public class Database {
 		this.packageDirPath = progDirPath + "/packages";
 		this.currentDirPath = packageDirPath + "/current";
 		this.archiveDirPath = packageDirPath + "/archive";
+		this.damagedDirPath = packageDirPath + "/damaged";
 
 		this.logger = Logger.getLogger(Database.class.getName());
 		
@@ -69,6 +74,12 @@ public class Database {
 	 * @return					Success of checking in package
 	 */
 	public boolean checkInPackage(String personID, Package pkg) {
+		// the student may have been archived since the check-in list was loaded
+		if(dbMaps.getPerson(personID) == null) {
+			logger.warning("Package not checked in: person (ID: " + personID + ") is not on the roster.");
+			return false;
+		}
+
 		// check if package already exists
 		long pkgID = pkg.getPackageID();
 		if(dbMaps.getPackage(pkgID) != null) {
@@ -253,6 +264,10 @@ public class Database {
 		if(archivePersonIDs.contains(personID)) {
 			String archiveFile = archiveDirPath + '/' + personID;
 			restoredFromArchive = addPersonPackagesFromFile(archiveFile);
+			if (!restoredFromArchive) {
+				reportDamagedFiles("The archived record for " + person.getFullName() + " (" + personID
+						+ ") could not be read, so they were added without their package history.");
+			}
 			if (restoredFromArchive) {
 				FileIO.deleteFile(archiveFile);
 				dbMaps.editPerson(person); //edit the person instead of adding
@@ -261,8 +276,8 @@ public class Database {
 
 		if (!restoredFromArchive) {
 			//Not in the archive, or the archived file could not be read: add them fresh.
-			//Their packages are lost in the unreadable case, but the person is still added
-			//and the archive file is left in place to be recovered by hand.
+			//An unreadable file has been moved to packages/damaged, where it can be
+			//recovered by hand without being overwritten when they are next archived.
 			dbMaps.addPerson(person);
 		}
 		
@@ -365,7 +380,11 @@ public class Database {
 		} catch (IOException e) {
 			logger.warning("Failed to read " + fileName);
 			e.printStackTrace();
-		} 
+		} catch (JsonParseException e) {
+			// damaged or hand-edited JSON - Gson throws this unchecked, so it would
+			// otherwise escape and stop the program at startup
+			logger.warning("Damaged person file " + fileName + ": " + e.getMessage());
+		}
 		
 		return dbPair;
 		
@@ -377,8 +396,45 @@ public class Database {
 	 */
 	private void readCurrentDatabase() {
 		ArrayList<String> currentFileNames = FileIO.getFileNamesFromDirectory(currentDirPath);
+		int damaged = 0;
 		for (String fileName: currentFileNames) {
-			addPersonPackagesFromFile(currentDirPath+'/'+fileName);
+			if (!addPersonPackagesFromFile(currentDirPath+'/'+fileName)) {
+				damaged++;
+			}
+		}
+		if (damaged > 0) {
+			reportDamagedFiles(damaged + " student record(s) could not be read and were not loaded.");
+		}
+	}
+
+	/*
+	 * Tells the user that damaged files were set aside, and where to find them.
+	 */
+	private void reportDamagedFiles(String what) {
+		if (viewAdaptor != null) {
+			viewAdaptor.displayWarning(what + "\n\nThe damaged file(s) were moved to:\n " + damagedDirPath
+					+ "\n\nKeep them - they hold the package history and may be recoverable.",
+					"Damaged Records");
+		}
+	}
+
+	/*
+	 * Moves an unreadable person file to packages/damaged. Left where it was, it would
+	 * be overwritten - and its package history lost - the next time that student's file
+	 * is written to the same folder. Any earlier damaged copy is kept alongside.
+	 */
+	private void setAsideDamagedFile(String fileName) {
+		File source = new File(fileName);
+		if (!source.exists()) {
+			return;
+		}
+		FileIO.makeDirs(damagedDirPath);
+		File target = new File(damagedDirPath, source.getName() + "-"
+				+ new SimpleDateFormat("yyyyMMdd-HHmmss").format(new Date()));
+		if (source.renameTo(target)) {
+			logger.warning("Moved damaged person file " + fileName + " to " + target.getPath());
+		} else {
+			logger.severe("Could not move damaged person file " + fileName + " to " + target.getPath());
 		}
 	}
 	
@@ -391,8 +447,9 @@ public class Database {
 
 		// readPersonFile returns null when the file is missing or unreadable. Skip it
 		// rather than dereferencing - one damaged record must not stop the program.
-		if (dbPair == null || dbPair.first == null) {
+		if (dbPair == null || dbPair.first == null || dbPair.first.getPersonID() == null) {
 			logger.warning("Skipping unreadable person file: " + fileName);
+			setAsideDamagedFile(fileName);
 			return false;
 		}
 
@@ -533,6 +590,8 @@ public class Database {
 	 * Builds the "rows that could not be read" section shared by the confirmation and the
 	 * completion message. Returns "" when every row was usable.
 	 */
+	private static final int MAX_FAILED_ROWS_SHOWN = 10;
+
 	private String describeFailedRows(ArrayList<Pair<String,String>> failedToRead) {
 		if (failedToRead.isEmpty()) {
 			return "";
@@ -546,7 +605,20 @@ public class Database {
 		}
 		logger.warning(report.toString());
 
-		return report.toString();
+		// The full list is in the log. A dialog taller than the screen pushes its buttons
+		// out of reach, so only show the first few.
+		if (failedToRead.size() <= MAX_FAILED_ROWS_SHOWN) {
+			return report.toString();
+		}
+		StringBuilder shortReport = new StringBuilder();
+		shortReport.append("\n").append(failedToRead.size())
+				.append(" row(s) in the file could not be read, including:\n");
+		for (Pair<String,String> failure : failedToRead.subList(0, MAX_FAILED_ROWS_SHOWN)) {
+			shortReport.append("   ").append(failure.first).append(" - ").append(failure.second).append('\n');
+		}
+		shortReport.append("   ...and ").append(failedToRead.size() - MAX_FAILED_ROWS_SHOWN)
+				.append(" more (the full list is in the log file)\n");
+		return shortReport.toString();
 	}
 	
 }

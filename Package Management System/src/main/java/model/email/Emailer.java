@@ -1,11 +1,15 @@
 package model.email;
 
 import java.io.UnsupportedEncodingException;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.GregorianCalendar;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.Properties;
 import java.util.Date;
 import java.util.logging.Logger;
@@ -16,6 +20,7 @@ import jakarta.mail.Message;
 import jakarta.mail.MessagingException;
 import jakarta.mail.PasswordAuthentication;
 import jakarta.mail.NoSuchProviderException;
+import jakarta.mail.SendFailedException;
 import jakarta.mail.Session;
 import jakarta.mail.Transport;
 import jakarta.mail.internet.InternetAddress;
@@ -50,16 +55,17 @@ public class Emailer {
 	
 	private Logger logger;
 	private IModelToViewAdaptor viewAdaptor;
+
+	// whether the user has been told about Gmail's sending limit this session
+	private boolean sendingLimitReported = false;
 	
 	public Emailer(IModelToViewAdaptor viewAdaptor) {
 		// get PropertyHandler and logger instance
 		this.propHandler = PropertyHandler.getInstance();
 		this.logger = Logger.getLogger(Emailer.class.getName());
 		this.logger.setLevel(java.util.logging.Level.ALL);
-		
-		java.util.logging.ConsoleHandler handler = new java.util.logging.ConsoleHandler();
-		//handler.setLevel(java.util.logging.Level.ALL);
-		this.logger.addHandler(handler);
+		// No extra ConsoleHandler here: the root logger already has one, and adding a
+		// second printed every Emailer message to the console twice.
 
 		this.viewAdaptor = viewAdaptor;
 		logger.info("Emailer initialized.");
@@ -97,7 +103,18 @@ public class Emailer {
 		attemptConnection();
 
 		if(checkReminder()) {
-			sendAllReminders(activeEntriesSortedByPerson);
+			int pending = pendingReminders(activeEntriesSortedByPerson).size();
+			if (pending == 0) {
+				// nobody has a package waiting, so today's reminders are already done
+				propHandler.setProperty("email.last_reminder", Long.valueOf(new Date().getTime()).toString());
+			} else if (viewAdaptor.getBooleanInput(pending + " reminder email(s) are ready to send to students "
+					+ "with packages waiting.\n\nSend them now?", "Send Reminders",
+					new String[] {"Send Now", "Not Now"})) {
+				sendAllReminders(activeEntriesSortedByPerson);
+			} else {
+				// asked again the next time the program starts
+				logger.info("Reminder emails postponed by the user (" + pending + " pending).");
+			}
 		}
 	}
 
@@ -172,7 +189,14 @@ public class Emailer {
 	}
 
 	/**
-	 * Function that sends all reminder emails
+	 * Function that sends all reminder emails.
+	 *
+	 * Every message is built before connecting, so a template problem is reported once
+	 * and nothing waits on a dialog while the connection is open. Each student who is
+	 * sent a reminder is recorded straight away, so a run that stops part way - most
+	 * often at Gmail's daily sending limit - carries on from where it stopped next time,
+	 * instead of emailing everyone again from the start.
+	 *
 	 * @param allEntriesSortedByPerson	All active entries - MUST be sorted by person
 	 * @return							Success of sending all reminders
 	 */
@@ -183,31 +207,143 @@ public class Emailer {
 			return false;
 		}
 
-		//collect ArrayList of pairs of person,ArrayList<Package>
-		ArrayList<Pair<Person,ArrayList<Package>>> remindList = collectPairs(allEntriesSortedByPerson);
-		try {
-			connect();
-			// iterate through ArrayList, sending emails if the person has packages
-			for (Pair<Person,ArrayList<Package>> ppPair : remindList) {
-				sendPackageReminder(ppPair.first,ppPair.second);
-			}
-			closeConnection();
-			
-			logger.info("Successfully sent reminder emails.");
-			
-			// add property with the current time as the last sent date
+		ArrayList<Pair<Person,ArrayList<Package>>> remindList = pendingReminders(allEntriesSortedByPerson);
+		if (remindList.isEmpty()) {
 			propHandler.setProperty("email.last_reminder", Long.valueOf(new Date().getTime()).toString());
 			return true;
-		} catch(NoSuchProviderException e) {
-			logger.warning(e.getMessage());
+		}
+		if (!templatesUsable()) {
 			return false;
+		}
+
+		// build every message first
+		List<String[]> messages = new ArrayList<String[]>();
+		for (Pair<Person,ArrayList<Package>> ppPair : remindList) {
+			messages.add(buildReminder(ppPair.first, ppPair.second));
+		}
+
+		Set<String> reminded = remindedToday();
+		int sent = 0;
+		int badAddresses = 0;
+		try {
+			connect();
+			for (int i = 0; i < remindList.size(); i++) {
+				Person person = remindList.get(i).first;
+				String[] message = messages.get(i);
+				try {
+					sendEmail(person.getEmailAddress(), person.getFullName(), message[0], message[1]);
+				} catch (SendFailedException e) {
+					if (isSendingLimit(e)) {
+						throw e;
+					}
+					// a bad address only affects this student - carry on with the rest
+					logger.warning("Reminder not sent to " + person.getPersonID() + ": " + e.getMessage());
+					badAddresses++;
+					continue;
+				}
+				sent++;
+				reminded.add(person.getPersonID());
+				saveRemindedToday(reminded);
+			}
 		} catch(MessagingException e) {
-			logger.warning(e.getMessage());
+			logger.warning("Reminder emails stopped after " + sent + " of " + remindList.size()
+					+ ": " + e.getMessage());
+			viewAdaptor.displayWarning((isSendingLimit(e)
+					? "Gmail's daily sending limit has been reached, so reminder emails stopped.\n\n"
+					: "Reminder emails stopped because of a mail server error:\n " + e.getMessage() + "\n\n")
+					+ sent + " of " + remindList.size() + " reminders were sent. The rest will be offered\n"
+					+ "the next time the program starts.", "Reminders Not Finished");
 			return false;
 		} catch (UnsupportedEncodingException e) {
 			logger.severe(e.getMessage());
 			return false;
+		} finally {
+			closeConnectionQuietly();
 		}
+
+		logger.info("Sent " + sent + " reminder emails" + (badAddresses > 0
+				? "; " + badAddresses + " could not be delivered to their address." : "."));
+
+		// add property with the current time as the last sent date
+		propHandler.setProperty("email.last_reminder", Long.valueOf(new Date().getTime()).toString());
+		return true;
+	}
+
+	/*
+	 * Students with packages waiting who have not already been sent a reminder today.
+	 */
+	private ArrayList<Pair<Person,ArrayList<Package>>> pendingReminders(
+			ArrayList<Pair<Person,Package>> allEntriesSortedByPerson) {
+		Set<String> reminded = remindedToday();
+		ArrayList<Pair<Person,ArrayList<Package>>> pending = new ArrayList<Pair<Person,ArrayList<Package>>>();
+		for (Pair<Person,ArrayList<Package>> ppPair : collectPairs(allEntriesSortedByPerson)) {
+			if (!reminded.contains(ppPair.first.getPersonID())) {
+				pending.add(ppPair);
+			}
+		}
+		return pending;
+	}
+
+	/*
+	 * IDs of the students sent a reminder today, stored as "yyyy-MM-dd:id1,id2". A value
+	 * from an earlier day is ignored, so the list starts empty each morning.
+	 */
+	private Set<String> remindedToday() {
+		Set<String> result = new LinkedHashSet<String>();
+		String prefix = today() + ":";
+		String value = propHandler.getProperty("email.reminded_today");
+		if (value != null && value.startsWith(prefix)) {
+			for (String id : value.substring(prefix.length()).split(",")) {
+				if (!id.isEmpty()) {
+					result.add(id);
+				}
+			}
+		}
+		return result;
+	}
+
+	private void saveRemindedToday(Set<String> reminded) {
+		propHandler.setProperty("email.reminded_today", today() + ":" + String.join(",", reminded));
+	}
+
+	private static String today() {
+		return new SimpleDateFormat("yyyy-MM-dd").format(new Date());
+	}
+
+	/*
+	 * True for Gmail's "550 5.4.5 Daily user sending limit exceeded" response. Nothing
+	 * more can be sent until the limit resets, so there is no point trying the rest.
+	 */
+	static boolean isSendingLimit(MessagingException e) {
+		for (Exception cause = e; cause != null;
+				cause = cause instanceof MessagingException ? ((MessagingException) cause).getNextException() : null) {
+			String message = cause.getMessage();
+			if (message != null && (message.contains("5.4.5") || message.toLowerCase().contains("sending limit"))) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/*
+	 * Checks that the template file has every section an email needs. getRawFile has
+	 * already told the user when the file could not be read at all.
+	 */
+	private boolean templatesUsable() {
+		Map<String,String> templates = TemplateHandler.getTemplates(true, false);
+		if (templates.isEmpty()) {
+			logger.warning("Emails not sent: the email template could not be read.");
+			return false;
+		}
+		List<String> missing = TemplateHandler.missingHeaders(templates);
+		if (!missing.isEmpty()) {
+			logger.warning("Emails not sent: the email template is missing " + missing);
+			viewAdaptor.displayError("The email template is missing these sections:\n  "
+					+ String.join(", ", missing) + "\n\nNo emails were sent. Fix the template in\n"
+					+ "Admin -> Email and Printer -> Change Email Template.", "Email Template Incomplete");
+			return false;
+		}
+		return true;
 	}
 
 	/*
@@ -232,6 +368,10 @@ public class Emailer {
 		variables.put("NUMPKGS", "--");
 		//variables.put("ALIAS",   "");  
 
+		if (!templatesUsable()) {
+			return false;
+		}
+
 		// Load email templates from template file
 		Map<String,String> templates = TemplateHandler.getResolvedTemplates(variables);
 
@@ -240,14 +380,23 @@ public class Emailer {
 		try {
 			connect();
 			sendEmail(recipient.getEmailAddress(), recipient.getFullName(), subject, body);
-			closeConnection();
 		} catch (UnsupportedEncodingException e) {
 			logger.severe("UnsupportedEncodingException for Person (ID: " + recipient.getPersonID() +
 					") and Package (ID: " + pkg.getPackageID() + ")");
 			return false;
 		} catch (MessagingException e) {
 			logger.warning(e.getMessage());
+			if (isSendingLimit(e) && !sendingLimitReported) {
+				// once per session - the check-in result already says this email was not sent
+				sendingLimitReported = true;
+				viewAdaptor.displayWarning("Gmail's daily sending limit has been reached.\n\n"
+						+ "Notification emails cannot be sent until it resets, which can take up to\n"
+						+ "24 hours. Packages are still checked in and labels still print.",
+						"Gmail Sending Limit");
+			}
 			return false;
+		} finally {
+			closeConnectionQuietly();
 		}
 		return true;
 	}
@@ -337,6 +486,17 @@ public class Emailer {
 	private void closeConnection() throws MessagingException {
         transport.close();
 	}
+
+	// close the connection, if one is open, when there is nothing useful to do on failure
+	private void closeConnectionQuietly() {
+		try {
+			if (transport != null && transport.isConnected()) {
+				transport.close();
+			}
+		} catch (MessagingException e) {
+			logger.info("Error while closing the mail connection: " + e.getMessage());
+		}
+	}
 	
 	/**
 	 * Check if a reminder email should be sent. Reminder email will be sent if
@@ -372,11 +532,10 @@ public class Emailer {
 	}
 	
 	/**
-	 * Sends a reminder email to the recipient reminding them of each package that
-	 * is returned by recipient.getPackageList()
+	 * Builds the reminder email for the recipient, listing each of their packages.
+	 * @return					{subject, body}
 	 */
-	private void sendPackageReminder(Person recipient, ArrayList<Package> packages) 
-			throws UnsupportedEncodingException, MessagingException {
+	private String[] buildReminder(Person recipient, ArrayList<Package> packages) {
 		
 		// Find variable values
 		Map<String,String> variables = new HashMap<String,String>();
@@ -404,7 +563,7 @@ public class Emailer {
 			body += "\n";
 		}
 		body += "Jones Mail Room";
-		sendEmail(recipient.getEmailAddress(), recipient.getFullName(), subject, body);
+		return new String[] {subject, body};
 	}
 	
 	/**

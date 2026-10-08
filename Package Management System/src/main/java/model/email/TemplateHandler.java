@@ -9,7 +9,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Files;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
@@ -28,9 +30,36 @@ public class TemplateHandler {
 	static String headers =
 			"NOTIFICATION-SUBJECT|NOTIFICATION-BODY|REMINDER-SUBJECT|REMINDER-BODY|SENDER-ALIAS|AUTO-LINEBREAK";
 
-	static Pattern varResolutionPat = Pattern.compile("(?<!\\\\)\\$([A-Z\\-]*)");
+	// A variable name must start with a letter, so a price such as "$5" or a lone "$" is
+	// plain text rather than an empty variable name.
+	static Pattern varResolutionPat = Pattern.compile("(?<!\\\\)\\$([A-Z][A-Z\\-]*)");
 
-	public static void setViewAdaptor (IModelToViewAdaptor _viewAdaptor) { viewAdaptor = _viewAdaptor; }
+	/** The headers every email needs; a template without one of them cannot be sent. */
+	public static final String[] REQUIRED_HEADERS =
+		{"NOTIFICATION-SUBJECT", "NOTIFICATION-BODY", "REMINDER-SUBJECT", "REMINDER-BODY"};
+
+	// The unknown variables the user was last warned about. The warning is only shown
+	// again when this changes, so a reminder run does not raise one dialog per student.
+	private static Set<String> lastWarnedUnresolved = new TreeSet<String>();
+
+	public static void setViewAdaptor (IModelToViewAdaptor _viewAdaptor) {
+		viewAdaptor = _viewAdaptor;
+		lastWarnedUnresolved = new TreeSet<String>();
+	}
+
+	/**
+	 * Returns the required headers that are missing from the resolved templates, or an
+	 * empty list when the templates can be used to send email.
+	 */
+	public static List<String> missingHeaders(Map<String,String> templates) {
+		List<String> missing = new ArrayList<String>();
+		for (String header : REQUIRED_HEADERS) {
+			if (templates.get(header) == null) {
+				missing.add(header);
+			}
+		}
+		return missing;
+	}
 	
 	public static HashMap<String,String> getTemplates(boolean convert, boolean comments) {
 		HashMap<String,String> result = new HashMap<String,String>();
@@ -213,9 +242,12 @@ public class TemplateHandler {
 			resolvedTemplates.put(header, resolved);
 		}
 
-		if (!unresolved.isEmpty() && viewAdaptor != null) {
+		if (!unresolved.isEmpty()) {
+			logger.warning("Unknown variables in email template: $" + String.join(", $", unresolved));
+		}
+		if (!unresolved.isEmpty() && viewAdaptor != null && !unresolved.equals(lastWarnedUnresolved)) {
+			lastWarnedUnresolved = unresolved;
 			String names = "$" + String.join(", $", unresolved);
-			logger.warning("Unknown variables in email template: " + names);
 			viewAdaptor.displayWarning("The email template uses variables that do not exist:\n  "
 					+ names + "\n\nThey were left as-is in the message. Check the spelling in\n"
 					+ "Admin -> Email and Printer -> Change Email Template.",

@@ -118,6 +118,43 @@ class TemplateHandlerTest {
 		assertTrue(view.warnings.get(0).contains("$FIRSTNAME"), view.warnings.get(0));
 	}
 
+	@Test
+	void aDollarAmountIsNotAVariable() throws Exception {
+		writeTemplate("AUTO-LINEBREAK:\nFALSE\n\nSENDER-ALIAS:\nJones\n\n"
+				+ "NOTIFICATION-SUBJECT:\nPackage\n\n"
+				+ "NOTIFICATION-BODY:\nLate pickup fee is $5. Pay at the $ desk, $FNAME.\n\n"
+				+ "REMINDER-SUBJECT:\nReminder\n\nREMINDER-BODY:\nHi\n");
+
+		String body = TemplateHandler.getResolvedTemplates(variables()).get("NOTIFICATION-BODY");
+
+		assertTrue(body.contains("fee is $5. Pay at the $ desk, Navin."), body);
+		assertTrue(view.warnings.isEmpty(), "nothing here is an unknown variable: " + view.warnings);
+	}
+
+	@Test
+	void theSameUnknownVariableIsOnlyReportedOnce() throws Exception {
+		// A reminder run resolves the template once per student. One dialog each
+		// meant clicking through dozens while the mail connection timed out.
+		writeTemplate("AUTO-LINEBREAK:\nFALSE\n\nSENDER-ALIAS:\nJones\n\n"
+				+ "NOTIFICATION-SUBJECT:\nPackage\n\nNOTIFICATION-BODY:\nHi\n\n"
+				+ "REMINDER-SUBJECT:\nReminder\n\nREMINDER-BODY:\nHello $FIRSTNAME\n");
+
+		for (int i = 0; i < 50; i++) {
+			TemplateHandler.getResolvedTemplates(variables());
+		}
+
+		assertEquals(1, view.warnings.size(), view.warnings.toString());
+	}
+
+	@Test
+	void reportsMissingSections() throws Exception {
+		writeTemplate("SENDER-ALIAS:\nJones\n\nNOTIFICATION-SUBJECT:\nPackage\n\n"
+				+ "NOTIFICATION-BODY:\nHi\n\nREMINDER-SUBJECT:\nReminder\n");
+
+		assertEquals(List.of("REMINDER-BODY"),
+				TemplateHandler.missingHeaders(TemplateHandler.getTemplates(true, false)));
+	}
+
 	// ---- line breaks --------------------------------------------------------
 
 	@Test

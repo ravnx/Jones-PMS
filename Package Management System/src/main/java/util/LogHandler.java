@@ -32,7 +32,7 @@ public class LogHandler {
 	    try {  
 
 	    	// get the file name
-	    	SimpleDateFormat ft = new SimpleDateFormat("YYYY_MM_dd_HH_mm_ss");
+	    	SimpleDateFormat ft = new SimpleDateFormat("yyyy_MM_dd_HH_mm_ss");
 	    	Date now = new Date();
 	    	String logFileName = "PMS_" + ft.format(now) + ".log";
 	    	
