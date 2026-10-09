@@ -51,12 +51,12 @@ public class PanelEditEmailPrinter extends JPanel{
 				String oldEmail = modelAdaptor.getEmailAddress();
 				String oldAlias = modelAdaptor.getEmailAlias();
 				
-				ChangeEmail emailDlg = new ChangeEmail(frame,oldAlias,oldEmail);
+				ChangeEmail emailDlg = new ChangeEmail(frame,oldAlias,oldEmail,modelAdaptor.getSmtpSettings());
 				String newEmail[] = emailDlg.showDialog();
 				
 				// make the changes in the model
 				if(newEmail != null) {
-					modelAdaptor.changeEmail(newEmail[0], newEmail[1], newEmail[2]);
+					modelAdaptor.changeEmail(newEmail[0], newEmail[1], newEmail[2], emailDlg.getSmtpSettings());
 				}
 				
 			}

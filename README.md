@@ -18,6 +18,9 @@ Installation instructions
     - Email - your Gmail email address
     - Password - a Gmail [App Password](https://myaccount.google.com/apppasswords), not the
       normal account password. Google requires 2-Step Verification to be on to create one.
+    - Mail server settings (advanced) - leave these alone unless told otherwise. They
+      default to Gmail (`smtp.gmail.com`, port 587, STARTTLS). To send through a different
+      server, open Admin -> Email and Printer -> Change Email Account and expand the section.
 5. Select a printer from the dropdown menu. Make sure that the drivers are installed.
 6. Import a CSV file containing student information (Admin -> Student Information -> Import).
    See [CSV file format](#csv-file-format) below.

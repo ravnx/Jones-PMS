@@ -15,6 +15,7 @@ import util.Package;
 import util.Pair;
 import util.Person;
 import util.PropertyHandler;
+import util.SmtpSettings;
 import view.IViewToModelAdaptor;
 import view.MainFrame;
 
@@ -118,8 +119,9 @@ public class Controller{
 				return modelPM.checkAdminPassword(password);
 			}
 			
-			public void changeEmail(String newEmail, String newPassword, String newAlias) {
-				modelPM.changeEmail(newEmail, newPassword, newAlias);
+			public void changeEmail(String newEmail, String newPassword, String newAlias,
+					SmtpSettings newSmtp) {
+				modelPM.changeEmail(newEmail, newPassword, newAlias, newSmtp);
 			}
 			
 			public String getEmailAddress() {
@@ -128,6 +130,10 @@ public class Controller{
 			
 			public String getEmailAlias() {
 				return modelPM.getEmailAlias();
+			}
+
+			public SmtpSettings getSmtpSettings() {
+				return modelPM.getSmtpSettings();
 			}
 			
 			public void importPersonCSV(String fileName) {
@@ -188,9 +194,9 @@ public class Controller{
 				return viewFrame.getChoiceFromList(message, title, choices);
 			}
 
-			public String[] changeEmail(String senderAddress,
-					String senderPassword, String senderAlias) {
-				return viewFrame.changeEmail(senderAddress, senderPassword, senderAlias);
+			public Pair<String[],SmtpSettings> changeEmail(String senderAddress,
+					String senderPassword, String senderAlias, SmtpSettings smtp) {
+				return viewFrame.changeEmail(senderAddress, senderPassword, senderAlias, smtp);
 			}
 
 			public boolean getBooleanInput(String message, String title,

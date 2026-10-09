@@ -1,5 +1,8 @@
 package model;
 
+import util.Pair;
+import util.SmtpSettings;
+
 /*
  * Interface outlining the operations that can be performed by the model (model.database)
  * to the view (MainFrame)
@@ -49,9 +52,12 @@ public interface IModelToViewAdaptor {
 	 * @param senderAddress		Old email address
 	 * @param senderPassword	Old email password
 	 * @param senderAlias		Old email name
-	 * @return					Array of strings containing new information
+	 * @param smtp				Current mail server settings
+	 * @return					{alias, address, password} and the new mail server settings,
+	 * 							or null if cancelled
 	 */
-	public String[] changeEmail(String senderAddress, String senderPassword, String senderAlias);
+	public Pair<String[],SmtpSettings> changeEmail(String senderAddress, String senderPassword,
+			String senderAlias, SmtpSettings smtp);
 
 	/**
 	 * Get a yes or no response from the user

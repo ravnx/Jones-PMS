@@ -12,6 +12,7 @@ import model.print.LabelPrinter;
 import util.Package;
 import util.Pair;
 import util.Person;
+import util.SmtpSettings;
 
 /**
  * Package Manager class functions as a large model to string together the
@@ -72,8 +73,8 @@ public class PackageManager {
 		return false;
 	}
 
-	public void changeEmail(String newEmail, String newPassword, String newAlias) {
-		mailer.setEmailProperties(newEmail, newPassword, newAlias);
+	public void changeEmail(String newEmail, String newPassword, String newAlias, SmtpSettings newSmtp) {
+		mailer.setEmailProperties(newEmail, newPassword, newAlias, newSmtp);
 	}
 	
 	public String getEmailAddress() {
@@ -82,6 +83,10 @@ public class PackageManager {
 
 	public String getEmailAlias() {
 		return mailer.getSenderAlias();
+	}
+
+	public SmtpSettings getSmtpSettings() {
+		return mailer.getSmtpSettings();
 	}
 	
 	public String getRawEmailTemplate() {

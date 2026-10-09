@@ -121,7 +121,7 @@ class PackageIdCollisionTest {
 		public void displayWarning(String warning, String title) { }
 		public String getChoiceFromList(String m, String t, String[] c) { return null; }
 		public String getPrinterNames(String[] printerNames) { return null; }
-		public String[] changeEmail(String a, String p, String n) { return null; }
+		public util.Pair<String[],util.SmtpSettings> changeEmail(String a, String p, String n, util.SmtpSettings s) { return null; }
 		public boolean getBooleanInput(String m, String t, String[] o) { return false; }
 	}
 }

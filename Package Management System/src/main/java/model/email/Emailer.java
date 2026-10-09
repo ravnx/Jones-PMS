@@ -31,10 +31,11 @@ import util.Package;
 import util.Pair;
 import util.Person;
 import util.PropertyHandler;
+import util.SmtpSettings;
 
 /*
  * Class that handles sending notification and reminder emails to students through
- * SMTP to the Gmail mail server.
+ * SMTP. The server defaults to Gmail and can be changed in Admin -> Email and Printer.
  */
 
 //TODO Timeout
@@ -47,7 +48,7 @@ public class Emailer {
 	private String senderPassword;
 	private String senderAlias;
 	
-	private String host;
+	private SmtpSettings smtp;
 	private Session session;
 	private Transport transport;
 	
@@ -71,7 +72,7 @@ public class Emailer {
 		logger.info("Emailer initialized.");
 		// Give view adaptor to the email template reader
 		TemplateHandler.setViewAdaptor(viewAdaptor);
-        this.host = "smtp.gmail.com";
+		this.smtp = SmtpSettings.GMAIL;
 	}
 	
 	public void start(ArrayList<Pair<Person, Package>> activeEntriesSortedByPerson) {
@@ -79,6 +80,7 @@ public class Emailer {
 		this.senderAddress = propHandler.getProperty("email.email_address");
 		this.senderPassword = propHandler.getProperty("email.password");
 		this.senderAlias = propHandler.getProperty("email.alias");
+		this.smtp = SmtpSettings.load(propHandler);
 
 		// warn the user if the email properties were not loaded
 		if(!isConfigured()) {
@@ -132,6 +134,21 @@ public class Emailer {
 	 * @param newPassword		New Password to email address
 	 */
 	public void setEmailProperties(String newAlias, String newAddress, String newPassword) {
+		setEmailProperties(newAlias, newAddress, newPassword, smtp);
+	}
+
+	/**
+	 * Changes the account and the mail server it is sent through, then tests the connection.
+	 * @param newSmtp			New mail server settings
+	 */
+	public void setEmailProperties(String newAlias, String newAddress, String newPassword,
+			SmtpSettings newSmtp) {
+
+		if (!newSmtp.equals(smtp)) {
+			logger.info("Mail server changed from " + smtp + " to " + newSmtp);
+		}
+		newSmtp.save(propHandler);
+		this.smtp = newSmtp;
 
 		propHandler.setProperty("email.email_address",newAddress);
 		propHandler.setProperty("email.password",newPassword);
@@ -146,7 +163,7 @@ public class Emailer {
 	}
 	
 	/**
-	 * Attempts to connect to the Gmail server with stored credentials
+	 * Attempts to connect to the mail server with stored credentials
 	 * Sends error messages to the view if an authentication error or a 
 	 * general messaging error occurs.
 	 */
@@ -177,7 +194,8 @@ public class Emailer {
 				logger.warning("Failed to connect to the mail server. " + e.getMessage());
 				System.err.println("MessagingException: " + e);
 				String[] options = {"Retry", "Cancel"};
-				retry = viewAdaptor.getBooleanInput("Program failed to connect to the Gmail server.\n"
+				retry = viewAdaptor.getBooleanInput("Program failed to connect to the mail server ("
+						+ smtp.getHost() + ":" + smtp.getPort() + ").\n"
 						+ "Please check your internet connection and try again.", 
 						"Failed Connection",options);
 				if(!retry) {
@@ -408,25 +426,49 @@ public class Emailer {
 	public String getSenderAlias() {
 		return senderAlias;
 	}
-	
-	// connect to the mail server
-	private void connect() throws NoSuchProviderException, MessagingException {
-		//logger.info("Connecting to SMTP server: " + host);
 
-		// set up properties for the mail session
-		Properties props = System.getProperties();
-        props.put("mail.smtp.starttls.enable", "true");
-        props.put("mail.smtp.host", host);
-		props.put("mail.smtp.ssl.trust", host);
-        props.put("mail.smtp.port", "587");
-        props.put("mail.smtp.auth", "true");
+	public SmtpSettings getSmtpSettings() {
+		return smtp;
+	}
+
+	/*
+	 * Mail session properties for the given server. A fresh Properties object is used
+	 * rather than System.getProperties(), so settings from a previous server (such as
+	 * SSL being switched on) cannot carry over after the server is changed.
+	 */
+	static Properties sessionProperties(SmtpSettings smtp) {
+		Properties props = new Properties();
+		props.put("mail.smtp.host", smtp.getHost());
+		props.put("mail.smtp.port", String.valueOf(smtp.getPort()));
+		props.put("mail.smtp.auth", "true");
+		switch (smtp.getSecurity()) {
+		case STARTTLS:
+			props.put("mail.smtp.starttls.enable", "true");
+			props.put("mail.smtp.ssl.trust", smtp.getHost());
+			break;
+		case SSL:
+			props.put("mail.smtp.ssl.enable", "true");
+			props.put("mail.smtp.ssl.trust", smtp.getHost());
+			break;
+		case NONE:
+			break;
+		}
 		// Adding timeouts for extra debugging
 		props.put("mail.smtp.connectiontimeout", "10000"); // 10 seconds
 		props.put("mail.smtp.timeout", "10000");
 		props.put("mail.smtp.writetimeout", "10000");
 		// Enable debug output from the mail API
 		//props.put("mail.debug", "true");
-		
+		return props;
+	}
+	
+	// connect to the mail server
+	private void connect() throws NoSuchProviderException, MessagingException {
+		//logger.info("Connecting to SMTP server: " + host);
+
+		// set up properties for the mail session
+		Properties props = sessionProperties(smtp);
+
 		final String username = senderAddress;
 		final String password = senderPassword;
 
@@ -448,7 +490,7 @@ public class Emailer {
 
 		try {
 			transport = session.getTransport("smtp");
-			transport.connect(host, senderAddress, senderPassword);
+			transport.connect(smtp.getHost(), smtp.getPort(), senderAddress, senderPassword);
 			logger.info("Connected to SMTP server successfully. transport.isConnected() = " + transport.isConnected());
 		} catch (NoSuchProviderException e) {
 			logger.warning("No such provider: " + e.getMessage());
@@ -571,9 +613,9 @@ public class Emailer {
 	 * @return								True if the user input email information
 	 */
 	private boolean changeEmail() {
-		String[] newEmail = viewAdaptor.changeEmail(senderAddress,senderPassword,senderAlias);
+		Pair<String[],SmtpSettings> newEmail = viewAdaptor.changeEmail(senderAddress,senderPassword,senderAlias,smtp);
 		if(newEmail != null) {
-			setEmailProperties(newEmail[0],newEmail[1],newEmail[2]);
+			setEmailProperties(newEmail.first[0],newEmail.first[1],newEmail.first[2],newEmail.second);
 			return true;
 		}
 		return false;

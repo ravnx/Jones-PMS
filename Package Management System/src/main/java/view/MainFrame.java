@@ -11,6 +11,8 @@ import view.dialog.ChangeEmail;
 import view.panel.PanelCheckIn;
 import view.panel.PanelPickUp;
 import view.panel.TabbedPaneAdmin;
+import util.Pair;
+import util.SmtpSettings;
 
 import javax.swing.event.ChangeListener;
 import javax.swing.event.ChangeEvent;
@@ -172,9 +174,11 @@ public class MainFrame extends JFrame {
 				JOptionPane.PLAIN_MESSAGE, null, options, options[0]);
 	}
 	
-	public String[] changeEmail(String oldEmail, String oldPassword, String oldAlias) {
-		ChangeEmail emailDlg = new ChangeEmail(frame,oldAlias,oldEmail);
-		return emailDlg.showDialog();
+	public Pair<String[],SmtpSettings> changeEmail(String oldEmail, String oldPassword, String oldAlias,
+			SmtpSettings oldSmtp) {
+		ChangeEmail emailDlg = new ChangeEmail(frame,oldAlias,oldEmail,oldSmtp);
+		String[] account = emailDlg.showDialog();
+		return account == null ? null : new Pair<String[],SmtpSettings>(account, emailDlg.getSmtpSettings());
 	}
 	
 }

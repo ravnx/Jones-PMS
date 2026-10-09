@@ -6,6 +6,7 @@ import java.util.Map;
 import util.Package;
 import util.Pair;
 import util.Person;
+import util.SmtpSettings;
 
 /*
  * Interface outlining the operations that can be performed by the view (MainFrame)
@@ -124,8 +125,9 @@ public interface IViewToModelAdaptor {
 	 * @param newEmail			New email input by user
 	 * @param newPassword		New password input by user
 	 * @param newAlias			New email alias input by user
+	 * @param newSmtp			New mail server settings
 	 */
-	public void changeEmail(String newEmail, String newPassword, String newAlias);
+	public void changeEmail(String newEmail, String newPassword, String newAlias, SmtpSettings newSmtp);
 	
 	/**
 	 * Returns the email address stored
@@ -138,6 +140,12 @@ public interface IViewToModelAdaptor {
 	 * @return 					String containing email alias
 	 */
 	public String getEmailAlias();
+
+	/**
+	 * Returns the mail server the program sends through
+	 * @return					Current mail server settings
+	 */
+	public SmtpSettings getSmtpSettings();
 	
 	/**
 	 * Returns raw email template
