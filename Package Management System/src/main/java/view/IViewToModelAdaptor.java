@@ -1,6 +1,8 @@
 package view;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 import util.Package;
@@ -42,6 +44,20 @@ public interface IViewToModelAdaptor {
 	 * @return					Success of checking out package
 	 */
 	public boolean checkOutPackage(long pkgID);
+
+	/**
+	 * Checks out several packages that were collected but never scanned out
+	 *
+	 * @param pkgIDs			IDs of the packages to be checked out
+	 * @return					How many packages were checked out
+	 */
+	public int checkOutPackages(List<Long> pkgIDs);
+
+	/**
+	 * @param day				A day; packages checked in on it are not included
+	 * @return					IDs of packages still checked in from before the day
+	 */
+	public ArrayList<Long> getPackagesCheckedInBefore(LocalDate day);
 	
 	/*
 	 * Check in functions

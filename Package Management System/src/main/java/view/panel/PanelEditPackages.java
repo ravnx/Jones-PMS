@@ -1,21 +1,29 @@
 package view.panel;
 
 import java.text.SimpleDateFormat;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Date;
 import java.util.List;
 import java.util.Vector;
 
+import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JMenuItem;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
 import javax.swing.JScrollPane;
+import javax.swing.JSpinner;
 import javax.swing.JTable;
 import javax.swing.JTextField;
 import javax.swing.ListSelectionModel;
 import javax.swing.RowFilter;
 import javax.swing.RowSorter.SortKey;
+import javax.swing.SpinnerDateModel;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.table.DefaultTableCellRenderer;
@@ -33,6 +41,7 @@ import com.jgoodies.forms.layout.ColumnSpec;
 import com.jgoodies.forms.layout.FormLayout;
 import com.jgoodies.forms.layout.RowSpec;
 
+import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.event.MouseAdapter;
@@ -60,6 +69,8 @@ public class PanelEditPackages extends JPanel {
 	private DefaultTableModel tableModel;
     private TableRowSorter<DefaultTableModel> sorter;
     private JPopupMenu popup;
+    private JPopupMenu multiPopup;
+    private JMenuItem checkOutSelectedItem;
 
 	private ArrayList<Pair<Person,Package>> packages;
 	private JLabel lblSearch;
@@ -112,6 +123,16 @@ public class PanelEditPackages extends JPanel {
 		});
 		popup.add(checkOutPackageItem);
 
+		// popup menu for several selected packages
+		multiPopup = new JPopupMenu();
+		checkOutSelectedItem = new JMenuItem();
+		checkOutSelectedItem.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent arg0) {
+				checkOutSelectedPackages();
+			}
+		});
+		multiPopup.add(checkOutSelectedItem);
+
 		// active packages table
 		tableActivePackages = new JTable();
 		tableActivePackages.addMouseListener(new MouseAdapter() {
@@ -126,22 +147,30 @@ public class PanelEditPackages extends JPanel {
 			}
 
 			private void checkPopup(MouseEvent e) {
+				if (!e.isPopupTrigger()) {
+					return;
+				}
+				// Right-clicking inside the selection keeps it; anywhere else selects that row
 				int r = tableActivePackages.rowAtPoint(e.getPoint());
-		        if (r >= 0 && r < tableActivePackages.getRowCount()) {
-		            tableActivePackages.setRowSelectionInterval(r, r);
-		        } else {
+		        if (r < 0 || r >= tableActivePackages.getRowCount()) {
 		            tableActivePackages.clearSelection();
+		            return;
+		        }
+		        if (!tableActivePackages.isRowSelected(r)) {
+		            tableActivePackages.setRowSelectionInterval(r, r);
 		        }
 
-		        int rowindex = tableActivePackages.getSelectedRow();
-		        if (rowindex < 0)
-		            return;
-		        if (e.isPopupTrigger()) {
+		        int selected = tableActivePackages.getSelectedRowCount();
+		        if (selected == 1) {
 		        	popup.show(e.getComponent(), e.getX(), e.getY());
+		        } else {
+		        	checkOutSelectedItem.setText("Check Out " + selected + " Packages");
+		        	multiPopup.show(e.getComponent(), e.getX(), e.getY());
 		        }
 			}
 		});
-		tableActivePackages.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+		// Shift- and Cmd-click select several packages to check out together
+		tableActivePackages.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
 		sorter = new TableRowSorter<DefaultTableModel>();
 		tableActivePackages.setRowSorter(sorter);
 
@@ -188,6 +217,16 @@ public class PanelEditPackages extends JPanel {
 			}
 		});
 		add(chckbxActivePackagesOnly, "3, 6, 3, 1, left, default");
+
+		JButton btnCheckOutOld = new JButton("Check Out Old Packages...");
+		btnCheckOutOld.setToolTipText("Check out every package checked in before a chosen day, "
+				+ "for packages that were picked up but never scanned out.");
+		btnCheckOutOld.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent arg0) {
+				checkOutOldPackages();
+			}
+		});
+		add(btnCheckOutOld, "7, 6, right, default");
 	}
 
 	/**
@@ -427,6 +466,80 @@ public class PanelEditPackages extends JPanel {
 
 		// regenerate the table
 		generateTable();
+	}
+
+	/**
+	 * Checks out every selected package that is still checked in, with confirmation
+	 */
+	private void checkOutSelectedPackages() {
+		List<Long> pkgIDs = new ArrayList<Long>();
+		for (int row : tableActivePackages.getSelectedRows()) {
+			String checkOut = (String) tableActivePackages.getValueAt(row, 4);
+			if (checkOut.isEmpty()) {
+				pkgIDs.add(Long.valueOf((String) tableActivePackages.getValueAt(row, 5)));
+			}
+		}
+		if (pkgIDs.isEmpty()) {
+			JOptionPane.showMessageDialog(frame, "The selected packages are already checked out.",
+					"Packages Checked Out", JOptionPane.INFORMATION_MESSAGE);
+			return;
+		}
+		confirmAndCheckOut(pkgIDs, "Check out the " + pkgIDs.size() + " selected package(s)?");
+	}
+
+	/**
+	 * Asks for a day, then checks out every package still checked in from before it
+	 */
+	private void checkOutOldPackages() {
+		LocalDate today = LocalDate.now();
+		SpinnerDateModel dateModel = new SpinnerDateModel(toDate(today.minusDays(30)), null,
+				toDate(today), Calendar.DAY_OF_MONTH);
+		JSpinner dateSpinner = new JSpinner(dateModel);
+		dateSpinner.setEditor(new JSpinner.DateEditor(dateSpinner, "yyyy/MM/dd"));
+
+		JPanel panel = new JPanel(new BorderLayout(0, 8));
+		panel.add(new JLabel("Check out every package checked in before:"), BorderLayout.NORTH);
+		panel.add(dateSpinner, BorderLayout.CENTER);
+		if (JOptionPane.showConfirmDialog(frame, panel, "Check Out Old Packages",
+				JOptionPane.OK_CANCEL_OPTION, JOptionPane.QUESTION_MESSAGE) != JOptionPane.OK_OPTION) {
+			return;
+		}
+
+		LocalDate day = dateModel.getDate().toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
+		String dayText = day.format(DateTimeFormatter.ofPattern("yyyy/MM/dd"));
+		List<Long> pkgIDs = modelAdaptor.getPackagesCheckedInBefore(day);
+		if (pkgIDs.isEmpty()) {
+			JOptionPane.showMessageDialog(frame, "No packages checked in before " + dayText
+					+ " are waiting to be checked out.", "Check Out Old Packages",
+					JOptionPane.INFORMATION_MESSAGE);
+			return;
+		}
+		confirmAndCheckOut(pkgIDs, "Check out the " + pkgIDs.size() + " package(s) checked in before "
+				+ dayText + "?");
+	}
+
+	/**
+	 * Explains what a bulk check-out does, and does it if the user agrees
+	 */
+	private void confirmAndCheckOut(List<Long> pkgIDs, String question) {
+		String message = question + "\n\n"
+				+ "Use this for packages that were picked up but never scanned out.\n"
+				+ "No emails are sent, and reminder emails stop for these packages.\n"
+				+ "Their check-out date will be today, and each is marked\n"
+				+ "\"Checked out in bulk by admin\".\n\n"
+				+ "This cannot be undone.";
+		if (JOptionPane.showConfirmDialog(frame, message, "Check Out Packages",
+				JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE) != JOptionPane.YES_OPTION) {
+			return;
+		}
+		int count = modelAdaptor.checkOutPackages(pkgIDs);
+		generateTable();
+		JOptionPane.showMessageDialog(frame, count + " package(s) checked out.", "Check Out Packages",
+				JOptionPane.INFORMATION_MESSAGE);
+	}
+
+	private static Date toDate(LocalDate day) {
+		return Date.from(day.atStartOfDay(ZoneId.systemDefault()).toInstant());
 	}
 
 }

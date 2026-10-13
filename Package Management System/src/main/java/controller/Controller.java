@@ -3,7 +3,9 @@ package controller;
 import java.awt.EventQueue;
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.logging.Logger;
 
@@ -82,6 +84,14 @@ public class Controller{
 			
 			public boolean checkOutPackage(long pkgID) {
 				return modelPM.checkOutPackage(pkgID);
+			}
+
+			public int checkOutPackages(List<Long> pkgIDs) {
+				return modelPM.checkOutPackages(pkgIDs);
+			}
+
+			public ArrayList<Long> getPackagesCheckedInBefore(LocalDate day) {
+				return modelPM.getPackagesCheckedInBefore(day);
 			}
 			
 			public ArrayList<Person> getPersonList(String searchString) {
