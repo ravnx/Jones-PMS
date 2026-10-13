@@ -291,6 +291,13 @@ class UpdateInstallerTest {
 	}
 
 	@Test
+	void aRestartThatIsQuitNormallyIsNotAFailure() throws Exception {
+		// The user may quit the new version within moments of it opening
+		UpdateInstaller.start(List.of("/bin/sh", "-c", "exit 0"), tempDir.resolve("relaunch.log"),
+				Duration.ofSeconds(5));
+	}
+
+	@Test
 	void leavesARestartThatKeepsRunning() throws Exception {
 		Process process = UpdateInstaller.start(List.of("/bin/sleep", "10"), tempDir.resolve("relaunch.log"),
 				Duration.ofMillis(300));

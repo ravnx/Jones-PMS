@@ -199,7 +199,7 @@ public class UpdateInstaller {
 
 	/**
 	 * Starts the jar again in a new process and waits briefly to see that it keeps
-	 * running. The caller then exits.
+	 * running or is quit normally. The caller then exits.
 	 *
 	 * @param log			Where the new process's console output goes, for finding out
 	 *						why it stopped
@@ -216,7 +216,7 @@ public class UpdateInstaller {
 	 * Runs the command with its output in the log, overwriting any earlier log.
 	 *
 	 * @param grace			How long the process must keep running to count as started
-	 * @throws IOException	if it could not be started, or stopped within the grace period
+	 * @throws IOException	if it could not be started, or failed within the grace period
 	 */
 	static Process start(List<String> command, Path log, Duration grace) throws IOException {
 		Files.createDirectories(log.getParent());
@@ -225,7 +225,8 @@ public class UpdateInstaller {
 				.redirectOutput(Redirect.to(log.toFile()))
 				.start();
 		try {
-			if (process.waitFor(grace.toMillis(), TimeUnit.MILLISECONDS)) {
+			// Exit 0 is the user quitting; Java failing to start always exits non-zero
+			if (process.waitFor(grace.toMillis(), TimeUnit.MILLISECONDS) && process.exitValue() != 0) {
 				throw new IOException("The restarted program stopped at once (exit "
 						+ process.exitValue() + "); see " + log);
 			}
