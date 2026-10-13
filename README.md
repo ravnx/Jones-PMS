@@ -170,6 +170,22 @@ to recieve notifications about the package. To check out this package,
 4. Click on "Check Out Package" in the popup menu.
 5. Confirm that you want to check out the package.
 
+#### Check Out Many Packages
+If many packages were picked up but never scanned out, their students keep getting reminder
+emails. To check them out together,
+
+1. Go to the Packages tab (Admin -> Packages)
+2. Either:
+    - select the packages - Shift-click selects a range, Cmd-click adds one at a time -
+      then right click on the selection and click on "Check Out N Packages", or
+    - click "Check Out Old Packages..." and choose a day. Every package checked in before
+      that day and still waiting is checked out.
+3. Read the count and confirm.
+
+No emails are sent, and reminders stop for these packages. Their check-out date is the day
+you do this, and each one's comment says "Checked out in bulk by admin". Packages already
+checked out are left as they are. This cannot be undone.
+
 #### Reprint Label
 If the printer runs out of ink or there's any printer issue, you may want to reprint the label. To do so,
 
