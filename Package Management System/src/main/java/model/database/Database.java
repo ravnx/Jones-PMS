@@ -11,6 +11,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.logging.Logger;
@@ -116,8 +117,57 @@ public class Database {
 		
 		// write to file
 		writePersonFile(dbMaps.getOwnerID(pkgID),currentDirPath);
-		
+
 		return true;
+	}
+
+	/**
+	 * Checks out several packages at once, adding a note to each one's comment saying
+	 * how it was checked out. Packages already checked out, or no longer in the
+	 * database, are skipped. Each student's file is written once.
+	 * @param pkgIDs			Packages to check out
+	 * @param note				Added to the end of each package's comment
+	 * @return					How many packages were checked out
+	 */
+	public int checkOutPackages(Collection<Long> pkgIDs, String note) {
+		Date now = new Date();
+		HashSet<String> owners = new HashSet<String>();
+		int count = 0;
+		for (long pkgID : pkgIDs) {
+			Package pkg = dbMaps.getPackage(pkgID);
+			// also skips a package listed twice, as the first pass checked it out
+			if (pkg == null || pkg.getCheckOutDate() != null) {
+				continue;
+			}
+			// note that this automatically edits the package in DBMaps
+			pkg.setCheckOutDate(now);
+			pkg.setComment(addNote(pkg.getComment(), note));
+			owners.add(dbMaps.getOwnerID(pkgID));
+			count++;
+		}
+		for (String personID : owners) {
+			writePersonFile(personID, currentDirPath);
+		}
+		logger.info("Checked out " + count + " package(s) in bulk: " + note);
+		return count;
+	}
+
+	private static String addNote(String comment, String note) {
+		return comment == null || comment.trim().isEmpty() ? note : comment + "; " + note;
+	}
+
+	/**
+	 * @param cutoff			The moment to look before
+	 * @return					The packages still checked in that were checked in before the cutoff
+	 */
+	public ArrayList<Long> getPackagesCheckedInBefore(Date cutoff) {
+		ArrayList<Long> found = new ArrayList<Long>();
+		for (Package pkg : dbMaps.getAllPackages()) {
+			if (pkg.getCheckOutDate() == null && pkg.getCheckInDate().before(cutoff)) {
+				found.add(pkg.getPackageID());
+			}
+		}
+		return found;
 	}
 	
 	/**

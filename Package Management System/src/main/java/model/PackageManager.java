@@ -1,8 +1,11 @@
 package model;
 
 import java.text.SimpleDateFormat;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.List;
 import java.util.Map;
 
 import model.database.Database;
@@ -166,7 +169,30 @@ public class PackageManager {
 	}
 	
 	public boolean checkOutPackage(long pkgID) {
-		return db.checkOutPackage(pkgID);		
+		return db.checkOutPackage(pkgID);
+	}
+
+	/**
+	 * Added to the comment of packages checked out in bulk. Their check-out date is the
+	 * day they were cleared up, not the day the student collected them.
+	 */
+	public static final String BULK_CHECK_OUT_NOTE = "Checked out in bulk by admin";
+
+	/**
+	 * Checks out several packages at once, for packages that were collected but never
+	 * scanned out. No emails are sent.
+	 * @return					How many packages were checked out
+	 */
+	public int checkOutPackages(List<Long> pkgIDs) {
+		return db.checkOutPackages(pkgIDs, BULK_CHECK_OUT_NOTE);
+	}
+
+	/**
+	 * @param day				A day; packages checked in on it are not included
+	 * @return					The packages still checked in that were checked in before the day
+	 */
+	public ArrayList<Long> getPackagesCheckedInBefore(LocalDate day) {
+		return db.getPackagesCheckedInBefore(Date.from(day.atStartOfDay(ZoneId.systemDefault()).toInstant()));
 	}
 	
 	public Package getPackage(long pkgID) {
