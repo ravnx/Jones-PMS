@@ -253,6 +253,10 @@ If a student was added by mistake, they can be easily removed,
 4. Select "Delete Student" from the popup menu.
 5. Confirm that you want to delete the student.
 
+### About
+Admin -> About shows which version is running and who to contact with questions or
+problems. Clicking the email address starts an email that already names the version.
+
 Acknowledgements
 ================
 First and foremost, I'd like to thank Christopher Henderson for all of the advice that he gave throughout the project.

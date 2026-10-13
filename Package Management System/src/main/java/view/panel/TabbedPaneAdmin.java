@@ -16,6 +16,7 @@ public class TabbedPaneAdmin extends JTabbedPane {
 	final String panelEditPackagesName = "Packages";
 	final String panelStudInfoName = "Student Information";
 	final String panelEditEmailPrinterName = "Email and Printer";
+	final String panelAboutName = "About";
 	
 	PanelEditPackages panelEditPackages;
 	PanelStudentInformation panelStudInfo;
@@ -32,6 +33,8 @@ public class TabbedPaneAdmin extends JTabbedPane {
 		
 		PanelEditEmailPrinter panelEditEmailPrinter = new PanelEditEmailPrinter(frame, modelAdaptor);
 		addTab(panelEditEmailPrinterName, null, panelEditEmailPrinter, null);
+
+		addTab(panelAboutName, null, new PanelAbout(), null);
 				
 		addChangeListener(new ChangeListener() {
 			public void stateChanged(ChangeEvent arg0) {

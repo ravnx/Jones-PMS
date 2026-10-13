@@ -1,6 +1,7 @@
 package view;
 
 import java.awt.BorderLayout;
+import java.awt.Desktop;
 
 import javax.swing.JFrame;
 import javax.swing.JPanel;
@@ -8,6 +9,7 @@ import javax.swing.border.EmptyBorder;
 import javax.swing.JOptionPane;
 import javax.swing.JTabbedPane;
 import view.dialog.ChangeEmail;
+import view.panel.PanelAbout;
 import view.panel.PanelCheckIn;
 import view.panel.PanelPickUp;
 import view.panel.TabbedPaneAdmin;
@@ -44,6 +46,11 @@ public class MainFrame extends JFrame {
 		setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 		setSize(800, 450);
 		setLocationRelativeTo(null);
+
+		// The About item in the macOS application menu
+		if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.APP_ABOUT)) {
+			Desktop.getDesktop().setAboutHandler(event -> PanelAbout.showDialog(frame));
+		}
 		
 		//TODO Menu Bar
 //		JMenuBar menuBar = new JMenuBar();
