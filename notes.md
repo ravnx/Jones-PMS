@@ -1,6 +1,13 @@
-## What's new in 2.3.0
+## What's new in 2.4.0
 
-**Check out many old packages at once.**
+**An About page.**
+Admin -> About shows which version is running and who to contact with questions,
+problems or ideas. Clicking the email address starts an email that already names the
+version. The same page is under About in the application menu, next to Quit.
+
+## Also new since 2.1.0
+
+**Check out many old packages at once** (new in 2.3.0).
 Packages that were picked up but never scanned out keep sending reminder emails. They
 can now be checked out together, in Admin -> Packages:
 
@@ -22,12 +29,12 @@ just starts as normal.
 
 ## Upgrading
 
-If you have 2.2.0, the program offers this update when it starts.
+If you have 2.2.0 or newer, the program offers this update when it starts.
 
 Otherwise, install this version by hand once. After that, new versions arrive on their
 own.
 
-1. Download `package-manager-2.3.0-jar-with-dependencies.jar` below.
+1. Download `package-manager-2.4.0-jar-with-dependencies.jar` below.
 2. In Finder, make the folder `Documents/package_management_system/app` in the mail
    room user's home folder. Move the jar into it and rename it `PackageManager.jar`.
 3. Right-click `PackageManager.jar`, choose Make Alias, and move the alias to the
