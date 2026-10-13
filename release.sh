@@ -38,7 +38,13 @@ notes="$(cd "$(dirname "$notes")" && pwd)/$(basename "$notes")"
 
 cd "$(dirname "$0")"
 
-[ -z "$(git status --porcelain)" ] || die "commit or stash your changes first"
+# The notes file itself may be an uncommitted file in the repository
+here=$(pwd)
+case "$notes" in
+	"$here"/*) dirty=$(git status --porcelain -- . ":(exclude)${notes#"$here"/}") ;;
+	*) dirty=$(git status --porcelain) ;;
+esac
+[ -z "$dirty" ] || die "commit or stash your changes first"
 [ "$(git rev-parse --abbrev-ref HEAD)" = main ] || die "releases are made from main"
 head=$(git rev-parse HEAD)
 remote=$(gh api "repos/$REPO/branches/main" --jq .commit.sha) || die "could not ask GitHub about main"
