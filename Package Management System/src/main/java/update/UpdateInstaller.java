@@ -18,6 +18,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.jar.Attributes;
 import java.util.jar.JarFile;
 import java.util.jar.Manifest;
@@ -53,6 +54,13 @@ public class UpdateInstaller {
 	}
 
 	private static final Logger logger = Logger.getLogger(UpdateInstaller.class.getName());
+
+	/** How long the restarted program must keep running to count as started */
+	private static final Duration STARTUP_GRACE = Duration.ofSeconds(3);
+
+	/** Java settings that are not passed on to the restarted program */
+	private static final String[] NOT_PASSED_ON = { "-agentlib:", "-agentpath:", "-javaagent:",
+			"-Xrunjdwp", "-Xdebug", "-XX:Flags=" };
 
 	private final Path jar;
 	private final HttpClient http;
@@ -190,27 +198,67 @@ public class UpdateInstaller {
 	}
 
 	/**
-	 * Starts the jar again in a new process. The caller then exits.
+	 * Starts the jar again in a new process and waits briefly to see that it keeps
+	 * running. The caller then exits.
 	 *
-	 * @throws IOException	if the new process could not be started
+	 * @param log			Where the new process's console output goes, for finding out
+	 *						why it stopped
+	 * @throws IOException	if the new process could not be started or stopped at once
 	 */
-	public void relaunch() throws IOException {
+	public void relaunch(Path log) throws IOException {
 		List<String> command = relaunchCommand(jar, System.getProperty("java.home"),
 				ManagementFactory.getRuntimeMXBean().getInputArguments());
 		logger.info("Restarting: " + command);
-		new ProcessBuilder(command)
-				.redirectOutput(Redirect.DISCARD)
-				.redirectError(Redirect.DISCARD)
-				.start();
+		start(command, log, STARTUP_GRACE);
 	}
 
-	/** The running Java, with the settings it was started with, running the jar */
+	/**
+	 * Runs the command with its output in the log, overwriting any earlier log.
+	 *
+	 * @param grace			How long the process must keep running to count as started
+	 * @throws IOException	if it could not be started, or stopped within the grace period
+	 */
+	static Process start(List<String> command, Path log, Duration grace) throws IOException {
+		Files.createDirectories(log.getParent());
+		Process process = new ProcessBuilder(command)
+				.redirectErrorStream(true)
+				.redirectOutput(Redirect.to(log.toFile()))
+				.start();
+		try {
+			if (process.waitFor(grace.toMillis(), TimeUnit.MILLISECONDS)) {
+				throw new IOException("The restarted program stopped at once (exit "
+						+ process.exitValue() + "); see " + log);
+			}
+		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
+		}
+		return process;
+	}
+
+	/**
+	 * The running Java, with the settings it was started with, running the jar. Debugger
+	 * and agent settings are left out: they can stop a second Java from starting, for
+	 * example when a debugger port is still held by this one.
+	 */
 	static List<String> relaunchCommand(Path jar, String javaHome, List<String> jvmArguments) {
 		List<String> command = new ArrayList<String>();
 		command.add(Paths.get(javaHome, "bin", "java").toString());
-		command.addAll(jvmArguments);
+		for (String argument : jvmArguments) {
+			if (!isDebuggerOrAgent(argument)) {
+				command.add(argument);
+			}
+		}
 		command.add("-jar");
 		command.add(jar.toString());
 		return command;
+	}
+
+	private static boolean isDebuggerOrAgent(String argument) {
+		for (String prefix : NOT_PASSED_ON) {
+			if (argument.startsWith(prefix)) {
+				return true;
+			}
+		}
+		return false;
 	}
 }

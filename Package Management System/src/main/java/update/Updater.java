@@ -261,7 +261,10 @@ public final class Updater {
 		}
 
 		try {
-			installer.relaunch();
+			String programDirectory = PropertyHandler.getInstance().getProperty("program_directory");
+			Path log = programDirectory == null ? jar.resolveSibling("relaunch.log")
+					: Paths.get(programDirectory, "logs", "relaunch.log");
+			installer.relaunch(log);
 		} catch (IOException e) {
 			logger.log(Level.WARNING, "Could not restart after updating", e);
 			JOptionPane.showMessageDialog(null, "Version " + latest.version() + " is installed, but the program "

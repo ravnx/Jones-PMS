@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -266,5 +267,37 @@ class UpdateInstallerTest {
 
 		assertEquals(List.of("/Library/Java/jdk-17/Contents/Home/bin/java", "-Duser.home=/tmp/home", "-Xmx512m",
 				"-jar", "/Users/x/My Apps/PackageManager.jar"), command);
+	}
+
+	@Test
+	void doesNotPassDebuggerOrAgentSettingsToTheRestart() {
+		List<String> command = UpdateInstaller.relaunchCommand(Path.of("/a/PackageManager.jar"), "/jdk",
+				List.of("-agentlib:jdwp=transport=dt_socket,server=y,address=5005", "-javaagent:/x/agent.jar",
+						"-agentpath:/x/lib.so", "-Xrunjdwp:transport=dt_socket", "-Xdebug",
+						"-XX:Flags=/x/flags", "-Duser.home=/h"));
+
+		assertEquals(List.of("/jdk/bin/java", "-Duser.home=/h", "-jar", "/a/PackageManager.jar"), command);
+	}
+
+	@Test
+	void reportsARestartThatStopsAtOnce() throws Exception {
+		Path log = tempDir.resolve("logs/relaunch.log");
+
+		IOException e = assertThrows(IOException.class, () -> UpdateInstaller.start(
+				List.of("/bin/sh", "-c", "echo Unrecognized option; exit 3"), log, Duration.ofSeconds(5)));
+
+		assertTrue(e.getMessage().contains("exit 3"), e.getMessage());
+		assertTrue(Files.readString(log).contains("Unrecognized option"));
+	}
+
+	@Test
+	void leavesARestartThatKeepsRunning() throws Exception {
+		Process process = UpdateInstaller.start(List.of("/bin/sleep", "10"), tempDir.resolve("relaunch.log"),
+				Duration.ofMillis(300));
+		try {
+			assertTrue(process.isAlive());
+		} finally {
+			process.destroy();
+		}
 	}
 }
