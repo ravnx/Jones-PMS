@@ -8,6 +8,10 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Locale;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -61,12 +65,23 @@ public class GitHubReleaseClient {
 				.header("User-Agent", USER_AGENT)
 				.GET()
 				.build();
+		// Before Java 26 the request timeout stops once the headers arrive, so a reply that
+		// stalls part way would hang startup. This limit covers the whole exchange.
+		CompletableFuture<HttpResponse<String>> pending =
+				http.sendAsync(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
 		HttpResponse<String> response;
 		try {
-			response = http.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+			response = pending.get(timeout.toMillis() * 2, TimeUnit.MILLISECONDS);
 		} catch (InterruptedException e) {
+			pending.cancel(true);
 			Thread.currentThread().interrupt();
 			throw new IOException("Interrupted while checking for updates", e);
+		} catch (TimeoutException e) {
+			pending.cancel(true);
+			throw new IOException("GitHub did not answer in time", e);
+		} catch (ExecutionException e) {
+			Throwable cause = e.getCause();
+			throw cause instanceof IOException ? (IOException) cause : new IOException(cause);
 		}
 		if (response.statusCode() != 200) {
 			throw new IOException("GitHub answered HTTP " + response.statusCode());

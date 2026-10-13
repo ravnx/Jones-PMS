@@ -174,6 +174,26 @@ class GitHubReleaseClientTest {
 	}
 
 	@Test
+	void givesUpWhenTheAnswerStallsAfterItsHeaders() throws Exception {
+		URI repository = serve(exchange -> {
+			exchange.sendResponseHeaders(200, 1000);
+			exchange.getResponseBody().write("{\"tag_name\"".getBytes(StandardCharsets.UTF_8));
+			exchange.getResponseBody().flush();
+			try {
+				Thread.sleep(5000);
+			} catch (InterruptedException e) {
+				Thread.currentThread().interrupt();
+			}
+			exchange.close();
+		});
+		GitHubReleaseClient client = new GitHubReleaseClient(repository, Duration.ofSeconds(1));
+
+		long start = System.nanoTime();
+		assertThrows(IOException.class, client::fetchLatest);
+		assertTrue(System.nanoTime() - start < 3_500_000_000L, "waited for the stalled answer");
+	}
+
+	@Test
 	void nobodyListeningIsReported() throws Exception {
 		URI repository = serve(200, "{}");
 		stopServer();
