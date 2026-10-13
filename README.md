@@ -8,12 +8,19 @@ Package management utility for the Jones College Mail Room.
 Installation instructions
 -------------------------
 
-1. [Install Java 17 or newer](https://adoptium.net/)
-2. Get the runnable jar (`package-manager-<version>-jar-with-dependencies.jar`).
-   It is not kept in the repository; build it as described in [Building from source](#building-from-source).
-   Or Michael can build one if you email him above for the mailroom PC.
-3. Open the Package Management System
-4. Setup email with a [Gmail](mail.google.com) account.
+The mail room runs this on a Mac. These steps are done once; after that the program
+updates itself (see [Updates](#updates)).
+
+1. [Install Java 17 or newer](https://adoptium.net/) (the macOS `.pkg` installer).
+2. Download `package-manager-<version>-jar-with-dependencies.jar` from the
+   [newest release](https://github.com/ravnx/Jones-PMS/releases/latest).
+3. In Finder, make the folder `Documents/package_management_system/app` in the mail room
+   user's home folder. Move the jar into it and rename it `PackageManager.jar`. Keeping it
+   there means updates never need an administrator password.
+4. Right-click `PackageManager.jar`, choose Make Alias, and move the alias to the Desktop.
+   Delete any older jar and its old desktop shortcut.
+5. Open the Package Management System from the desktop alias.
+6. Setup email with a [Gmail](mail.google.com) account.
     - Name - the name that will be sending all of the emails. Example - Jones College Mail Room, Mail Room, etc.
     - Email - your Gmail email address
     - Password - a Gmail [App Password](https://myaccount.google.com/apppasswords), not the
@@ -21,8 +28,8 @@ Installation instructions
     - Mail server settings (advanced) - leave these alone unless told otherwise. They
       default to Gmail (`smtp.gmail.com`, port 587, STARTTLS). To send through a different
       server, open Admin -> Email and Printer -> Change Email Account and expand the section.
-5. Select a printer from the dropdown menu. Make sure that the drivers are installed.
-6. Import a CSV file containing student information (Admin -> Student Information -> Import).
+7. Select a printer from the dropdown menu. Make sure that the drivers are installed.
+8. Import a CSV file containing student information (Admin -> Student Information -> Import).
    See [CSV file format](#csv-file-format) below.
 
 CSV file format
@@ -88,6 +95,39 @@ To restore a backup, close the program and unzip the backup into
 Version 2.0 saves student files in a new format, converting each one the first time it is
 saved. Older versions cannot read the new format, so to go back to an older version,
 restore a backup made before upgrading.
+
+Updates
+-------
+
+Each time it starts, the program asks GitHub whether a newer release is out. If there
+is one, it shows what changed and offers three choices:
+
+- **Update now** - downloads the new version, checks it, and restarts the program in it.
+  Students, packages and settings are kept.
+- **Later** - starts as normal and asks again next time.
+- **Skip this version** - starts as normal and does not ask about this version again.
+  A newer version is still offered.
+
+Without an internet connection the program just starts as normal.
+
+The version that was replaced is kept next to the new one as
+`PackageManager.jar.previous`. To go back to it, close the program, delete
+`PackageManager.jar`, and rename `PackageManager.jar.previous` to `PackageManager.jar`.
+If the newer version changed the file format, also restore a backup made before the
+update (see [Data and backups](#data-and-backups)). The old version will offer the
+update again; choose **Skip this version**.
+
+Releasing
+---------
+
+1. Set the new version in `pom.xml`, commit, and push `main`.
+2. Write the release notes in a file. The mail room sees them in the update prompt.
+3. From the repository root, run `./release.sh notes.md`.
+
+The script refuses to publish from anything but a clean `main` that matches GitHub, or a
+version that already has a tag. It builds the jar, checks the version inside it, and asks
+before publishing. `--dry-run` runs every check and the build without publishing.
+`--prerelease` publishes a release that the mail room is not offered.
 
 Usage instructions
 ------------------
@@ -163,7 +203,7 @@ all new students instead of adding them individually. To do so,
    and archived, and lists any rows it could not read. Nothing changes until you confirm.
 
 Note: This will archive all students not in the CSV file. Archived students keep their
-package history — to bring one back, use the Add button on the same tab and their packages
+package history - to bring one back, use the Add button on the same tab and their packages
 return with them. Students already on the roster keep their packages and have their name
 and email updated from the file.
 
