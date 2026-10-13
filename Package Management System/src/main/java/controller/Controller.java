@@ -9,6 +9,7 @@ import java.util.logging.Logger;
 
 import model.IModelToViewAdaptor;
 import model.PackageManager;
+import update.Updater;
 import util.FileIO;
 import util.LogHandler;
 import util.Package;
@@ -231,6 +232,10 @@ public class Controller{
 	}
 	
 	public void start() {
+		// Before anything is shown, and before modelPM.start() sends the reminder emails,
+		// so that after an update they are sent by the new version
+		Updater.checkAtStartup();
+
 		// Start view and model
 		viewFrame.start();
 		modelPM.start();
