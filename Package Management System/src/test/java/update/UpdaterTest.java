@@ -57,6 +57,20 @@ class UpdaterTest {
 	}
 
 	@Test
+	void aBugInTheCheckDoesNotStopTheProgram() {
+		Updater.runSafely(() -> {
+			throw new IllegalStateException("bug");
+		});
+	}
+
+	@Test
+	void aMissingPartOfJavaDoesNotStopTheProgram() {
+		Updater.runSafely(() -> {
+			throw new NoClassDefFoundError("java/net/http/HttpClient");
+		});
+	}
+
+	@Test
 	void aDevelopmentBuildIsNotUpdated() throws Exception {
 		assertNotNull(Updater.eligibilityProblem(null, jarIn(tempDir)));
 	}

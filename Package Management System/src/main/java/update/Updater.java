@@ -59,9 +59,15 @@ public final class Updater {
 	 * successful update has started the new version.
 	 */
 	public static void checkAtStartup() {
+		runSafely(Updater::check);
+	}
+
+	/** Runs the check so that no failure of it stops the program from starting */
+	static void runSafely(Runnable check) {
 		try {
-			check();
-		} catch (RuntimeException e) {
+			check.run();
+		} catch (RuntimeException | LinkageError e) {
+			// LinkageError: a Java without the parts the updater uses still runs the program
 			logger.log(Level.WARNING, "Update check failed", e);
 		}
 	}
